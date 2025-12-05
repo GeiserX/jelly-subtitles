@@ -2,7 +2,18 @@
 
 A Jellyfin plugin to automatically generate subtitles for your media using local AI models (Whisper, Parakeet, etc.).
 
+## Installation via Jellyfin UI
+
+1. Go to **Dashboard** → **Plugins** → **Repositories**
+2. Add this repository URL:
+   ```
+   https://geiserx.github.io/jelly-subtitles/manifest.json
+   ```
+3. Go to **Catalog** and find **JellySubtitles**
+4. Click **Install**
+
 ## Features
+
 *   **Local Processing**: Runs entirely on your server. No data leaves your network.
 *   **Pluggable Providers**: Support for Whisper (via whisper.cpp), Parakeet, and custom commands.
 *   **Admin UI**: Manage subtitles directly from the Jellyfin dashboard.
