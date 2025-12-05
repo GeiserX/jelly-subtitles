@@ -1,0 +1,98 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '6.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Get version from csproj
+        id: version
+        run: |
+          VERSION=$(grep -oP '(?<=<Version>)[^<]+' JellySubtitles.csproj)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create plugin package
+        run: |
+          mkdir -p release
+          cp bin/Release/net6.0/JellySubtitles.dll release/
+          cp bin/Release/net6.0/JellySubtitles.pdb release/ 2>/dev/null || true
+          cd release && zip -r ../JellySubtitles_${{ steps.version.outputs.version }}.zip .
+
+      - name: Calculate checksum
+        id: checksum
+        run: |
+          CHECKSUM=$(md5sum JellySubtitles_${{ steps.version.outputs.version }}.zip | cut -d ' ' -f 1)
+          echo "checksum=$CHECKSUM" >> $GITHUB_OUTPUT
+
+      - name: Update manifest.json
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          CHECKSUM="${{ steps.checksum.outputs.checksum }}"
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          
+          cat > manifest.json << EOF
+          [
+            {
+              "guid": "97124bd9-c8cd-4a53-a213-e593aa3fef52",
+              "name": "JellySubtitles",
+              "description": "Automated subtitle generation for Jellyfin using local AI models (Whisper, Parakeet, etc.)",
+              "overview": "Generate subtitles for your media library using local speech-to-text AI models. Supports Whisper, Parakeet, and custom command providers. All processing happens locally on your server.",
+              "owner": "GeiserX",
+              "category": "Subtitles",
+              "versions": [
+                {
+                  "version": "${VERSION}",
+                  "changelog": "See https://github.com/GeiserX/jelly-subtitles/releases",
+                  "targetAbi": "10.8.0.0",
+                  "sourceUrl": "https://github.com/GeiserX/jelly-subtitles/releases/download/v${VERSION}/JellySubtitles_${VERSION}.zip",
+                  "checksum": "${CHECKSUM}",
+                  "timestamp": "${TIMESTAMP}"
+                }
+              ]
+            }
+          ]
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: JellySubtitles v${{ steps.version.outputs.version }}
+          files: JellySubtitles_${{ steps.version.outputs.version }}.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
