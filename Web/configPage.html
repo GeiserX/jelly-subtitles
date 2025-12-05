@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>JellySubtitles Configuration</title>
+    <style>
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .tab-button {
+            cursor: pointer;
+            padding: 10px;
+            margin-right: 5px;
+            background: #333;
+            border: none;
+            color: #fff;
+        }
+
+        .tab-button.active {
+            background: #00a4dc;
+        }
+
+        .media-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .media-table th,
+        .media-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #444;
+        }
+    </style>
+</head>
+
+<body>
+    <div data-role="page" class="type-interior pluginConfigurationPage"
+        data-require="emby-button,emby-select,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <h1>JellySubtitles</h1>
+
+                <div class="tabs">
+                    <button class="tab-button active" onclick="showTab('settings')">Settings</button>
+                    <button class="tab-button" onclick="showTab('management')">Management</button>
+                </div>
+
+                <!-- Settings Tab -->
+                <div id="settings" class="tab-content active">
+                    <h2>Configuration</h2>
+                    <form class="jellySubtitlesConfigurationForm">
+                        <div class="selectContainer">
+                            <label class="selectLabel" for="selectProvider">Subtitle Provider</label>
+                            <select is="emby-select" id="selectProvider" name="SelectedProvider"
+                                class="emby-select-withcolor emby-select">
+                                <option value="Whisper">Whisper (Local)</option>
+                                <option value="Parakeet">Parakeet (Local)</option>
+                                <option value="Custom">Custom Command</option>
+                            </select>
+                            <div class="fieldDescription">Select the AI provider to use for generating subtitles.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtWhisperModelPath">Whisper Model
+                                Path</label>
+                            <input is="emby-input" type="text" id="txtWhisperModelPath" name="WhisperModelPath"
+                                class="emby-input" />
+                            <div class="fieldDescription">Absolute path to the Whisper model file (e.g., ggml-base.bin).
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="chkEnableAutoGeneration"
+                                    name="EnableAutoGeneration" />
+                                <span>Enable Auto-Generation</span>
+                            </label>
+                            <div class="fieldDescription">Automatically generate subtitles for new media in enabled
+                                libraries.</div>
+                        </div>
+
+                        <div>
+                            <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                                <span>Save Settings</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Management Tab -->
+                <div id="management" class="tab-content">
+                    <h2>Subtitle Management</h2>
+                    <p>Select libraries or items to generate subtitles for.</p>
+
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="selectLibrary">Library</label>
+                        <select is="emby-select" id="selectLibrary" class="emby-select-withcolor emby-select">
+                            <option value="">Select a Library...</option>
+                            <!-- Populated by JS -->
+                        </select>
+                    </div>
+
+                    <table class="media-table">
+                        <thead>
+                            <tr>
+                                <th>Media Name</th>
+                                <th>Status</th>
+                                <th>Provider</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mediaTableBody">
+                            <!-- Populated by JS -->
+                            <tr>
+                                <td>Example Movie (2024)</td>
+                                <td><span style="color: green;">Generated</span></td>
+                                <td>Whisper</td>
+                                <td>
+                                    <button is="emby-button" class="raised emby-button"
+                                        onclick="deleteSubtitle('123')">Delete</button>
+                                    <button is="emby-button" class="raised emby-button"
+                                        onclick="regenerateSubtitle('123')">Regenerate</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+
+        <script type="text/javascript">
+            var JellySubtitlesConfig = {
+                pluginId: '97124bd9-c8cd-4a53-a213-e593aa3fef52'
+            };
+
+            function showTab(tabId) {
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                document.getElementById(tabId).classList.add('active');
+                // Highlight button logic would go here
+            }
+
+            // Mock functions for UI demo
+            function deleteSubtitle(itemId) {
+                alert('Delete requested for item ' + itemId);
+                // ApiClient.ajax(...)
+            }
+
+            function regenerateSubtitle(itemId) {
+                alert('Regenerate requested for item ' + itemId);
+                // ApiClient.ajax(...)
+            }
+
+            document.querySelector('.jellySubtitlesConfigurationForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+                Dashboard.showLoadingMsg();
+
+                var config = {
+                    SelectedProvider: document.querySelector('#selectProvider').value,
+                    WhisperModelPath: document.querySelector('#txtWhisperModelPath').value,
+                    EnableAutoGeneration: document.querySelector('#chkEnableAutoGeneration').checked
+                };
+
+                ApiClient.getPluginConfiguration(JellySubtitlesConfig.pluginId).then(function (result) {
+                    result.SelectedProvider = config.SelectedProvider;
+                    result.WhisperModelPath = config.WhisperModelPath;
+                    result.EnableAutoGeneration = config.EnableAutoGeneration;
+
+                    ApiClient.updatePluginConfiguration(JellySubtitlesConfig.pluginId, result).then(function (result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                    });
+                });
+            });
+
+            // Load configuration
+            document.addEventListener('pageshow', function (e) {
+                ApiClient.getPluginConfiguration(JellySubtitlesConfig.pluginId).then(function (config) {
+                    document.querySelector('#selectProvider').value = config.SelectedProvider;
+                    document.querySelector('#txtWhisperModelPath').value = config.WhisperModelPath;
+                    document.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration;
+                });
+            });
+        </script>
+    </div>
+</body>
+
+</html>
