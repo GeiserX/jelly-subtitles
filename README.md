@@ -43,7 +43,7 @@ A Jellyfin plugin to automatically generate subtitles for your media using local
     *   For Parakeet: A running local instance or CLI tool.
 
 ## Development
-This project targets `.NET 6.0` to be compatible with Jellyfin 10.8.x.
+This project targets `.NET 9.0` to be compatible with Jellyfin 10.11.x.
 
 ## License
 MIT
