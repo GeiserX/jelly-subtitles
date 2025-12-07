@@ -38,9 +38,14 @@ namespace JellySubtitles.ScheduledTasks
         {
             return new[]
             {
-                new TaskTriggerInfo { Type = TaskTriggerInfo.TriggerDaily, TimeOfDayTicks = TimeSpan.FromHours(2).Ticks }
+                new TaskTriggerInfo
+                {
+                    Type = TaskTriggerInfoType.Daily,
+                    TimeOfDayTicks = TimeSpan.FromHours(2).Ticks
+                }
             };
         }
+
 
         public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
         {
