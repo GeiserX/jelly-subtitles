@@ -36,16 +36,9 @@ namespace JellySubtitles.ScheduledTasks
 
         public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
         {
-            return new[]
-            {
-                new TaskTriggerInfo
-                {
-                    Type = TaskTriggerInfoType.Daily,
-                    TimeOfDayTicks = TimeSpan.FromHours(2).Ticks
-                }
-            };
+            // No default triggers – task can be scheduled from the Jellyfin UI
+            return Array.Empty<TaskTriggerInfo>();
         }
-
 
         public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
         {
