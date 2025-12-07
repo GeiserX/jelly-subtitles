@@ -8,11 +8,12 @@
         "category": "Subtitles",
         "versions": [
             {
-                "version": "1.0.0.0",
+                "version": "1.0.1.0",
                 "changelog": "Initial release with plugin architecture skeleton.",
-                "targetAbi": "10.11.0.0""sourceUrl": "https://github.com/GeiserX/jelly-subtitles/releases/download/v1.0.0/JellySubtitles_1.0.0.0.zip",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/GeiserX/jelly-subtitles/releases/download/v1.0.0/JellySubtitles_1.0.0.0.zip",
                 "checksum": "",
-                "timestamp": "2024-12-05T22:00:00Z"
+                "timestamp": "2025-12-07T18:00:00Z"
             }
         ]
     }
