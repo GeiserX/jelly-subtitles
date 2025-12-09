@@ -20,7 +20,7 @@ namespace JellySubtitles
         }
 
         
-        public static Plugin? Instance { get; private set; }    
+        public static Plugin Instance { get; private set; } = null!;    
 
         public IEnumerable<PluginPageInfo> GetPages()
         {

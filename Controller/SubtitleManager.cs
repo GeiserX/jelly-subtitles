@@ -23,7 +23,7 @@ namespace JellySubtitles.Controller
         {
             _libraryManager = libraryManager;
             _logger = logger;
-            _config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+            _config = Plugin.Instance.Configuration;
         }
 
         public async Task GenerateSubtitleAsync(BaseItem item, ISubtitleProvider provider, CancellationToken cancellationToken)

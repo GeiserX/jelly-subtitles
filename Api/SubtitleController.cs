@@ -130,12 +130,7 @@ namespace JellySubtitles.Api
                     return BadRequest(new { error = "Item is not a video" });
                 }
 
-                var pluginInstance = Plugin.Instance;
-                if (pluginInstance == null)
-                {
-                    return StatusCode(500, new { error = "Plugin instance not available" });
-                }
-                var config = pluginInstance.Configuration;
+                var config = Plugin.Instance.Configuration;
                 
                 // Create logger factory for provider
                 var loggerFactory = HttpContext.RequestServices.GetService(typeof(ILoggerFactory)) as ILoggerFactory;
