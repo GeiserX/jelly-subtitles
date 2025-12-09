@@ -1,20 +1,20 @@
 [
-    {
-        "guid": "97124bd9-c8cd-4a53-a213-e593aa3fef52",
-        "name": "JellySubtitles",
-        "description": "Automated subtitle generation for Jellyfin using local AI models (Whisper, Parakeet, etc.)",
-        "overview": "Generate subtitles for your media library using local speech-to-text AI models. Supports Whisper, Parakeet, and custom command providers. All processing happens locally on your server.",
-        "owner": "GeiserX",
-        "category": "Subtitles",
-        "versions": [
-            {
-                "version": "1.0.1.0",
-                "changelog": "Initial release with plugin architecture skeleton.",
-                "targetAbi": "10.11.0.0",
-                "sourceUrl": "https://github.com/GeiserX/jelly-subtitles/releases/download/v1.0.0/JellySubtitles_1.0.0.0.zip",
-                "checksum": "",
-                "timestamp": "2025-12-07T18:00:00Z"
-            }
-        ]
-    }
+  {
+    "guid": "97124bd9-c8cd-4a53-a213-e593aa3fef52",
+    "name": "JellySubtitles",
+    "description": "Automated subtitle generation for Jellyfin using local AI models (Whisper, Parakeet, etc.)",
+    "overview": "Generate subtitles for your media library using local speech-to-text AI models. Supports Whisper, Parakeet, and custom command providers. All processing happens locally on your server.",
+    "owner": "GeiserX",
+    "category": "Subtitles",
+    "versions": [
+      {
+        "version": "1.0.4.2",
+        "changelog": "See https://github.com/GeiserX/jelly-subtitles/releases",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/GeiserX/jelly-subtitles/releases/download/v1.0.4.2/JellySubtitles_1.0.4.2.zip",
+        "checksum": "a1ed1f0600f02cb8699faacf69472d01",
+        "timestamp": "2025-12-09T21:29:40Z"
+      }
+    ]
+  }
 ]
