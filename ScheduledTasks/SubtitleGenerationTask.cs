@@ -44,7 +44,13 @@ namespace JellySubtitles.ScheduledTasks
         {
             _logger.LogInformation("Starting subtitle generation task.");
 
-            var config = Plugin.Instance.Configuration;
+            var pluginInstance = Plugin.Instance;
+            if (pluginInstance == null)
+            {
+                _logger.LogWarning("Plugin instance not available, skipping subtitle generation task.");
+                return;
+            }
+            var config = pluginInstance.Configuration;
             if (!config.EnableAutoGeneration)
             {
                 _logger.LogInformation("Auto-generation is disabled in configuration.");
