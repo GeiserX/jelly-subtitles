@@ -49,8 +49,8 @@
                 <h1>JellySubtitles</h1>
 
                 <div class="tabs">
-                    <button class="tab-button active" onclick="showTab('settings')">Settings</button>
-                    <button class="tab-button" onclick="showTab('management')">Management</button>
+                    <button is="emby-button" class="tab-button active" data-tab="settings">Settings</button>
+                    <button is="emby-button" class="tab-button" data-tab="management">Management</button>
                 </div>
 
                 <!-- Settings Tab -->
@@ -119,17 +119,6 @@
                         </thead>
                         <tbody id="mediaTableBody">
                             <!-- Populated by JS -->
-                            <tr>
-                                <td>Example Movie (2024)</td>
-                                <td><span style="color: green;">Generated</span></td>
-                                <td>Whisper</td>
-                                <td>
-                                    <button is="emby-button" class="raised emby-button"
-                                        onclick="deleteSubtitle('123')">Delete</button>
-                                    <button is="emby-button" class="raised emby-button"
-                                        onclick="regenerateSubtitle('123')">Regenerate</button>
-                                </td>
-                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -151,8 +140,8 @@
                 document.getElementById(tabId).classList.add('active');
                 
                 var buttons = document.querySelectorAll('.tab-button');
-                buttons.forEach((btn, index) => {
-                    if (btn.textContent.includes(tabId === 'settings' ? 'Settings' : 'Management')) {
+                buttons.forEach((btn) => {
+                    if (btn.getAttribute('data-tab') === tabId) {
                         btn.classList.add('active');
                     }
                 });
@@ -161,6 +150,7 @@
                     loadLibraries();
                 }
             }
+
 
             function loadLibraries() {
                 ApiClient.ajax({
@@ -205,15 +195,33 @@
 
                     items.forEach(function (item) {
                         var row = document.createElement('tr');
+                        var generateBtn = document.createElement('button');
+                        generateBtn.setAttribute('is', 'emby-button');
+                        generateBtn.className = 'raised emby-button';
+                        generateBtn.textContent = 'Generate';
+                        generateBtn.addEventListener('click', function() {
+                            generateSubtitle(item.Id);
+                        });
+                        
+                        var statusBtn = document.createElement('button');
+                        statusBtn.setAttribute('is', 'emby-button');
+                        statusBtn.className = 'raised emby-button';
+                        statusBtn.textContent = 'Status';
+                        statusBtn.addEventListener('click', function() {
+                            checkStatus(item.Id);
+                        });
+                        
+                        var actionsCell = document.createElement('td');
+                        actionsCell.appendChild(generateBtn);
+                        actionsCell.appendChild(document.createTextNode(' '));
+                        actionsCell.appendChild(statusBtn);
+                        
                         row.innerHTML = 
                             '<td>' + item.Name + '</td>' +
                             '<td><span style="color: ' + (item.HasSubtitles ? 'green' : 'orange') + ';">' + 
                                 (item.HasSubtitles ? 'Has Subtitles' : 'No Subtitles') + '</span></td>' +
-                            '<td>' + item.Type + '</td>' +
-                            '<td>' +
-                                '<button is="emby-button" class="raised emby-button" onclick="generateSubtitle(\'' + item.Id + '\')">Generate</button> ' +
-                                '<button is="emby-button" class="raised emby-button" onclick="checkStatus(\'' + item.Id + '\')">Status</button>' +
-                            '</td>';
+                            '<td>' + item.Type + '</td>';
+                        row.appendChild(actionsCell);
                         tbody.appendChild(row);
                     });
                 }).catch(function (error) {
@@ -292,6 +300,19 @@
                 });
             });
 
+            // Load configuration and initialize page
+            document.addEventListener('DOMContentLoaded', function() {
+                // Initialize tab buttons
+                document.querySelectorAll('.tab-button').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        var tabId = this.getAttribute('data-tab');
+                        if (tabId) {
+                            showTab(tabId);
+                        }
+                    });
+                });
+            });
+
             // Load configuration
             document.addEventListener('pageshow', function (e) {
                 ApiClient.getPluginConfiguration(JellySubtitlesConfig.pluginId).then(function (config) {
@@ -300,6 +321,8 @@
                         document.querySelector('#txtWhisperModelPath').value = config.WhisperModelPath || '';
                         document.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration || false;
                     }
+                }).catch(function(error) {
+                    console.error('Error loading configuration:', error);
                 });
             });
         </script>
