@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using JellySubtitles.Configuration;
 using JellySubtitles.Controller;
 using JellySubtitles.Providers;
+using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
@@ -48,7 +50,7 @@ namespace JellySubtitles.Api
             try
             {
                 var rootFolder = _libraryManager.RootFolder;
-                var libraries = rootFolder.GetChildren(true)
+                var libraries = rootFolder.GetChildren(null, true)
                     .Where(item => item is MediaBrowser.Controller.Entities.CollectionFolder)
                     .Select(item => new LibraryInfo
                     {
@@ -80,10 +82,11 @@ namespace JellySubtitles.Api
                     return NotFound(new { error = "Library not found" });
                 }
 
+                var includeTypes = GetBaseItemKinds("Movie,Episode,Series,Season");
                 var items = _libraryManager.GetItemList(new MediaBrowser.Controller.Entities.InternalItemsQuery
                 {
                     ParentId = library.Id,
-                    IncludeItemTypes = new[] { "Movie", "Episode", "Series", "Season" },
+                    IncludeItemTypes = includeTypes,
                     Recursive = true
                 })
                 .Select(item => new ItemInfo
@@ -92,7 +95,7 @@ namespace JellySubtitles.Api
                     Name = item.Name,
                     Type = item.GetType().Name,
                     Path = item.Path,
-                    HasSubtitles = item.HasSubtitles
+                    HasSubtitles = item is Video video && video.HasSubtitles
                 })
                 .ToList();
 
@@ -186,6 +189,29 @@ namespace JellySubtitles.Api
                 _logger.LogError(ex, "Error getting subtitle status for item {ItemId}", itemId);
                 return StatusCode(500, new { error = ex.Message });
             }
+        }
+
+        private BaseItemKind[] GetBaseItemKinds(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                return Array.Empty<BaseItemKind>();
+            }
+
+            var parts = input.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            var converter = TypeDescriptor.GetConverter(typeof(BaseItemKind));
+            var result = new List<BaseItemKind>();
+
+            foreach (var part in parts)
+            {
+                var trimmed = part.Trim();
+                if (converter.IsValid(trimmed) && Enum.TryParse<BaseItemKind>(trimmed, true, out var kind))
+                {
+                    result.Add(kind);
+                }
+            }
+
+            return result.ToArray();
         }
     }
 
