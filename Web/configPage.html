@@ -142,23 +142,133 @@
                 pluginId: '97124bd9-c8cd-4a53-a213-e593aa3fef52'
             };
 
+            var currentLibraries = [];
+            var currentItems = [];
+
             function showTab(tabId) {
                 document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
                 document.getElementById(tabId).classList.add('active');
-                // Highlight button logic would go here
+                
+                var buttons = document.querySelectorAll('.tab-button');
+                buttons.forEach((btn, index) => {
+                    if (btn.textContent.includes(tabId === 'settings' ? 'Settings' : 'Management')) {
+                        btn.classList.add('active');
+                    }
+                });
+
+                if (tabId === 'management') {
+                    loadLibraries();
+                }
             }
 
-            // Mock functions for UI demo
-            function deleteSubtitle(itemId) {
-                alert('Delete requested for item ' + itemId);
-                // ApiClient.ajax(...)
+            function loadLibraries() {
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: ApiClient.getUrl('Plugins/JellySubtitles/Libraries')
+                }).then(function (libraries) {
+                    currentLibraries = libraries;
+                    var select = document.querySelector('#selectLibrary');
+                    select.innerHTML = '<option value="">Select a Library...</option>';
+                    libraries.forEach(function (lib) {
+                        var option = document.createElement('option');
+                        option.value = lib.Id;
+                        option.textContent = lib.Name;
+                        select.appendChild(option);
+                    });
+                }).catch(function (error) {
+                    console.error('Error loading libraries:', error);
+                    Dashboard.alert('Error loading libraries: ' + (error.message || error));
+                });
             }
 
-            function regenerateSubtitle(itemId) {
-                alert('Regenerate requested for item ' + itemId);
-                // ApiClient.ajax(...)
+            function loadLibraryItems(libraryId) {
+                if (!libraryId) {
+                    document.querySelector('#mediaTableBody').innerHTML = '';
+                    return;
+                }
+
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: ApiClient.getUrl('Plugins/JellySubtitles/Libraries/' + libraryId + '/Items')
+                }).then(function (items) {
+                    currentItems = items;
+                    var tbody = document.querySelector('#mediaTableBody');
+                    tbody.innerHTML = '';
+
+                    if (items.length === 0) {
+                        var row = document.createElement('tr');
+                        row.innerHTML = '<td colspan="4">No items found in this library.</td>';
+                        tbody.appendChild(row);
+                        return;
+                    }
+
+                    items.forEach(function (item) {
+                        var row = document.createElement('tr');
+                        row.innerHTML = 
+                            '<td>' + item.Name + '</td>' +
+                            '<td><span style="color: ' + (item.HasSubtitles ? 'green' : 'orange') + ';">' + 
+                                (item.HasSubtitles ? 'Has Subtitles' : 'No Subtitles') + '</span></td>' +
+                            '<td>' + item.Type + '</td>' +
+                            '<td>' +
+                                '<button is="emby-button" class="raised emby-button" onclick="generateSubtitle(\'' + item.Id + '\')">Generate</button> ' +
+                                '<button is="emby-button" class="raised emby-button" onclick="checkStatus(\'' + item.Id + '\')">Status</button>' +
+                            '</td>';
+                        tbody.appendChild(row);
+                    });
+                }).catch(function (error) {
+                    console.error('Error loading library items:', error);
+                    Dashboard.alert('Error loading library items: ' + (error.message || error));
+                });
             }
+
+            function generateSubtitle(itemId) {
+                if (!confirm('Generate subtitles for this item? This may take a while.')) {
+                    return;
+                }
+
+                Dashboard.showLoadingMsg();
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('Plugins/JellySubtitles/Items/' + itemId + '/Generate?language=en')
+                }).then(function (result) {
+                    Dashboard.hideLoadingMsg();
+                    Dashboard.alert('Subtitle generation started. Check status in a few minutes.');
+                    // Refresh items after a delay
+                    setTimeout(function() {
+                        var libraryId = document.querySelector('#selectLibrary').value;
+                        if (libraryId) {
+                            loadLibraryItems(libraryId);
+                        }
+                    }, 2000);
+                }).catch(function (error) {
+                    Dashboard.hideLoadingMsg();
+                    console.error('Error generating subtitle:', error);
+                    Dashboard.alert('Error generating subtitle: ' + (error.message || error));
+                });
+            }
+
+            function checkStatus(itemId) {
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: ApiClient.getUrl('Plugins/JellySubtitles/Items/' + itemId + '/Status')
+                }).then(function (status) {
+                    var message = 'Subtitle Status:\n';
+                    message += 'Has Generated Subtitle: ' + (status.HasGeneratedSubtitle ? 'Yes' : 'No');
+                    if (status.SubtitlePath) {
+                        message += '\nPath: ' + status.SubtitlePath;
+                    }
+                    Dashboard.alert(message);
+                }).catch(function (error) {
+                    console.error('Error checking status:', error);
+                    Dashboard.alert('Error checking status: ' + (error.message || error));
+                });
+            }
+
+            // Library selection change handler
+            document.querySelector('#selectLibrary').addEventListener('change', function (e) {
+                loadLibraryItems(e.target.value);
+            });
 
             document.querySelector('.jellySubtitlesConfigurationForm').addEventListener('submit', function (e) {
                 e.preventDefault();
@@ -176,6 +286,7 @@
                     result.EnableAutoGeneration = config.EnableAutoGeneration;
 
                     ApiClient.updatePluginConfiguration(JellySubtitlesConfig.pluginId, result).then(function (result) {
+                        Dashboard.hideLoadingMsg();
                         Dashboard.processPluginConfigurationUpdateResult(result);
                     });
                 });
@@ -184,9 +295,11 @@
             // Load configuration
             document.addEventListener('pageshow', function (e) {
                 ApiClient.getPluginConfiguration(JellySubtitlesConfig.pluginId).then(function (config) {
-                    document.querySelector('#selectProvider').value = config.SelectedProvider;
-                    document.querySelector('#txtWhisperModelPath').value = config.WhisperModelPath;
-                    document.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration;
+                    if (config) {
+                        document.querySelector('#selectProvider').value = config.SelectedProvider || 'Whisper';
+                        document.querySelector('#txtWhisperModelPath').value = config.WhisperModelPath || '';
+                        document.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration || false;
+                    }
                 });
             });
         </script>
