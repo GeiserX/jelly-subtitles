@@ -13,17 +13,8 @@
             display: block;
         }
 
-        .tab-button {
-            cursor: pointer;
-            padding: 10px;
-            margin-right: 5px;
-            background: #333;
-            border: none;
-            color: #fff;
-        }
-
-        .tab-button.active {
-            background: #00a4dc;
+        .viewTabButton {
+            margin-right: 0.5em;
         }
 
         .media-table {
@@ -43,14 +34,14 @@
 
 <body>
     <div data-role="page" class="type-interior pluginConfigurationPage"
-        data-require="emby-button,emby-select,emby-checkbox">
+        data-require="emby-button,emby-select,emby-checkbox,emby-input">
         <div data-role="content">
             <div class="content-primary">
                 <h1>JellySubtitles</h1>
 
-                <div class="tabs">
-                    <button is="emby-button" class="tab-button active" data-tab="settings">Settings</button>
-                    <button is="emby-button" class="tab-button" data-tab="management">Management</button>
+                <div class="tabs" style="margin-bottom: 1.5em;">
+                    <button is="emby-button" type="button" class="raised viewTabButton ui-btn-active" data-tab="settings">Settings</button>
+                    <button is="emby-button" type="button" class="raised viewTabButton" data-tab="management">Management</button>
                 </div>
 
                 <!-- Settings Tab -->
@@ -71,7 +62,7 @@
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="txtWhisperModelPath">Whisper Model
                                 Path</label>
-                            <input is="emby-input" type="text" id="txtWhisperModelPath" name="WhisperModelPath"
+                            <input type="text" id="txtWhisperModelPath" name="WhisperModelPath"
                                 class="emby-input" />
                             <div class="fieldDescription">Absolute path to the Whisper model file (e.g., ggml-base.bin).
                             </div>
@@ -136,13 +127,15 @@
 
             function showTab(tabId) {
                 document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.viewTabButton').forEach(b => {
+                    b.classList.remove('ui-btn-active');
+                });
                 document.getElementById(tabId).classList.add('active');
                 
-                var buttons = document.querySelectorAll('.tab-button');
+                var buttons = document.querySelectorAll('.viewTabButton');
                 buttons.forEach((btn) => {
                     if (btn.getAttribute('data-tab') === tabId) {
-                        btn.classList.add('active');
+                        btn.classList.add('ui-btn-active');
                     }
                 });
 
@@ -300,18 +293,27 @@
                 });
             });
 
-            // Load configuration and initialize page
-            document.addEventListener('DOMContentLoaded', function() {
-                // Initialize tab buttons
-                document.querySelectorAll('.tab-button').forEach(function(btn) {
-                    btn.addEventListener('click', function() {
-                        var tabId = this.getAttribute('data-tab');
-                        if (tabId) {
-                            showTab(tabId);
-                        }
+            // Initialize page when loaded
+            (function() {
+                // Wait for page to be ready
+                var initPage = function() {
+                    // Initialize tab buttons
+                    document.querySelectorAll('.viewTabButton').forEach(function(btn) {
+                        btn.addEventListener('click', function() {
+                            var tabId = this.getAttribute('data-tab');
+                            if (tabId) {
+                                showTab(tabId);
+                            }
+                        });
                     });
-                });
-            });
+                };
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', initPage);
+                } else {
+                    initPage();
+                }
+            })();
 
             // Load configuration
             document.addEventListener('pageshow', function (e) {
