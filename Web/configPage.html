@@ -1,310 +1,226 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html>
 <head>
-    <meta charset="UTF-8">
     <title>JellySubtitles Configuration</title>
-    <style>
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        .media-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        .media-table th,
-        .media-table td {
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #444;
-        }
-    </style>
 </head>
-
 <body>
-    <div data-role="page" class="type-interior pluginConfigurationPage"
-        data-require="emby-button,emby-select,emby-checkbox">
+    <div data-role="page" class="page type-interior pluginConfigurationPage" data-name="jellySubtitlesConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
         <div data-role="content">
             <div class="content-primary">
                 <h1>JellySubtitles</h1>
-
-                <div class="tabs" style="margin-bottom: 1em;">
-                    <button is="emby-button" type="button" class="raised" data-tab="settings" style="margin-right: 0.5em;">Settings</button>
-                    <button is="emby-button" type="button" class="raised" data-tab="management">Management</button>
-                </div>
-
-                <!-- Settings Tab -->
-                <div id="settings" class="tab-content active">
-                    <h2>Configuration</h2>
-                    <form class="jellySubtitlesConfigurationForm">
-                        <div class="selectContainer">
-                            <label class="selectLabel" for="selectProvider">Subtitle Provider</label>
-                            <select is="emby-select" id="selectProvider" name="SelectedProvider"
-                                class="emby-select-withcolor emby-select">
-                                <option value="Whisper">Whisper (Local)</option>
-                                <option value="Parakeet">Parakeet (Local)</option>
-                                <option value="Custom">Custom Command</option>
-                            </select>
-                            <div class="fieldDescription">Select the AI provider to use for generating subtitles.</div>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="txtWhisperModelPath">Whisper Model
-                                Path</label>
-                            <input is="emby-input" type="text" id="txtWhisperModelPath" name="WhisperModelPath"
-                                class="emby-input" />
-                            <div class="fieldDescription">Absolute path to the Whisper model file (e.g., ggml-base.bin).
-                            </div>
-                        </div>
-
-                        <div class="checkboxContainer checkboxContainer-withDescription">
-                            <label>
-                                <input is="emby-checkbox" type="checkbox" id="chkEnableAutoGeneration"
-                                    name="EnableAutoGeneration" />
-                                <span>Enable Auto-Generation</span>
-                            </label>
-                            <div class="fieldDescription">Automatically generate subtitles for new media in enabled
-                                libraries.</div>
-                        </div>
-
-                        <div>
-                            <button is="emby-button" type="submit" class="raised button-submit block emby-button">
-                                <span>Save Settings</span>
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Management Tab -->
-                <div id="management" class="tab-content">
-                    <h2>Subtitle Management</h2>
-                    <p>Select libraries or items to generate subtitles for.</p>
-
+                <form class="jellySubtitlesConfigurationForm">
                     <div class="selectContainer">
-                        <label class="selectLabel" for="selectLibrary">Library</label>
-                        <select is="emby-select" id="selectLibrary" class="emby-select-withcolor emby-select">
-                            <option value="">Select a Library...</option>
-                            <!-- Populated by JS -->
+                        <label class="selectLabel" for="selectProvider">Subtitle Provider</label>
+                        <select is="emby-select" id="selectProvider" name="SelectedProvider">
+                            <option value="Whisper">Whisper (Local)</option>
+                            <option value="Parakeet">Parakeet (Local)</option>
+                            <option value="Custom">Custom Command</option>
                         </select>
+                        <div class="fieldDescription">Select the AI provider to use for generating subtitles.</div>
                     </div>
 
-                    <table class="media-table">
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="txtWhisperModelPath">Whisper Model Path</label>
+                        <input type="text" id="txtWhisperModelPath" name="WhisperModelPath" class="emby-input" />
+                        <div class="fieldDescription">Absolute path to the Whisper model file (e.g., /models/ggml-base.bin).</div>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="chkEnableAutoGeneration" name="EnableAutoGeneration" />
+                            <span>Enable Auto-Generation</span>
+                        </label>
+                        <div class="fieldDescription">Automatically generate subtitles for new media in enabled libraries.</div>
+                    </div>
+
+                    <button is="emby-button" type="submit" class="raised button-submit block">
+                        <span>Save</span>
+                    </button>
+                </form>
+
+                <br />
+                <h2>Subtitle Management</h2>
+                <p>Select a library to view items and generate subtitles.</p>
+
+                <div class="selectContainer">
+                    <label class="selectLabel" for="selectLibrary">Library</label>
+                    <select is="emby-select" id="selectLibrary">
+                        <option value="">Select a Library...</option>
+                    </select>
+                </div>
+
+                <div id="mediaTableContainer" style="margin-top: 1em;">
+                    <table class="tblMediaInfo" style="width: 100%;">
                         <thead>
                             <tr>
                                 <th>Media Name</th>
                                 <th>Status</th>
-                                <th>Provider</th>
+                                <th>Type</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="mediaTableBody">
-                            <!-- Populated by JS -->
                         </tbody>
                     </table>
                 </div>
-
             </div>
         </div>
-
         <script type="text/javascript">
             var JellySubtitlesConfig = {
-                pluginId: '97124bd9-c8cd-4a53-a213-e593aa3fef52'
-            };
-
-            var currentLibraries = [];
-            var currentItems = [];
-
-            function showTab(tabId) {
-                document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
-                document.getElementById(tabId).classList.add('active');
-
-                if (tabId === 'management') {
-                    loadLibraries();
-                }
-            }
-
-
-            function loadLibraries() {
-                ApiClient.ajax({
-                    type: 'GET',
-                    url: ApiClient.getUrl('Plugins/JellySubtitles/Libraries')
-                }).then(function (libraries) {
-                    currentLibraries = libraries;
-                    var select = document.querySelector('#selectLibrary');
-                    select.innerHTML = '<option value="">Select a Library...</option>';
-                    libraries.forEach(function (lib) {
-                        var option = document.createElement('option');
-                        option.value = lib.Id;
-                        option.textContent = lib.Name;
-                        select.appendChild(option);
+                pluginId: '97124bd9-c8cd-4a53-a213-e593aa3fef52',
+                loadConfiguration: function (page) {
+                    ApiClient.getPluginConfiguration(JellySubtitlesConfig.pluginId).then(function (config) {
+                        if (config) {
+                            page.querySelector('#selectProvider').value = config.SelectedProvider || 'Whisper';
+                            page.querySelector('#txtWhisperModelPath').value = config.WhisperModelPath || '';
+                            page.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration || false;
+                        }
+                        JellySubtitlesConfig.loadLibraries();
                     });
-                }).catch(function (error) {
-                    console.error('Error loading libraries:', error);
-                    Dashboard.alert('Error loading libraries: ' + (error.message || error));
-                });
-            }
-
-            function loadLibraryItems(libraryId) {
-                if (!libraryId) {
-                    document.querySelector('#mediaTableBody').innerHTML = '';
-                    return;
-                }
-
-                ApiClient.ajax({
-                    type: 'GET',
-                    url: ApiClient.getUrl('Plugins/JellySubtitles/Libraries/' + libraryId + '/Items')
-                }).then(function (items) {
-                    currentItems = items;
+                },
+                saveConfiguration: function (page) {
+                    ApiClient.getPluginConfiguration(JellySubtitlesConfig.pluginId).then(function (config) {
+                        config.SelectedProvider = page.querySelector('#selectProvider').value;
+                        config.WhisperModelPath = page.querySelector('#txtWhisperModelPath').value;
+                        config.EnableAutoGeneration = page.querySelector('#chkEnableAutoGeneration').checked;
+                        ApiClient.updatePluginConfiguration(JellySubtitlesConfig.pluginId, config).then(function (result) {
+                            Dashboard.processPluginConfigurationUpdateResult(result);
+                        });
+                    });
+                },
+                loadLibraries: function () {
+                    ApiClient.ajax({
+                        type: 'GET',
+                        url: ApiClient.getUrl('Plugins/JellySubtitles/Libraries')
+                    }).then(function (libraries) {
+                        var select = document.querySelector('#selectLibrary');
+                        select.innerHTML = '<option value="">Select a Library...</option>';
+                        libraries.forEach(function (lib) {
+                            var option = document.createElement('option');
+                            option.value = lib.Id;
+                            option.textContent = lib.Name;
+                            select.appendChild(option);
+                        });
+                    }).catch(function (error) {
+                        console.error('Error loading libraries:', error);
+                    });
+                },
+                loadLibraryItems: function (libraryId) {
                     var tbody = document.querySelector('#mediaTableBody');
-                    tbody.innerHTML = '';
-
-                    if (items.length === 0) {
-                        var row = document.createElement('tr');
-                        row.innerHTML = '<td colspan="4">No items found in this library.</td>';
-                        tbody.appendChild(row);
+                    if (!libraryId) {
+                        tbody.innerHTML = '<tr><td colspan="4">Select a library to view items.</td></tr>';
                         return;
                     }
 
-                    items.forEach(function (item) {
-                        var row = document.createElement('tr');
-                        var generateBtn = document.createElement('button');
-                        generateBtn.setAttribute('is', 'emby-button');
-                        generateBtn.className = 'raised emby-button';
-                        generateBtn.textContent = 'Generate';
-                        generateBtn.addEventListener('click', function() {
-                            generateSubtitle(item.Id);
+                    tbody.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
+
+                    ApiClient.ajax({
+                        type: 'GET',
+                        url: ApiClient.getUrl('Plugins/JellySubtitles/Libraries/' + libraryId + '/Items')
+                    }).then(function (items) {
+                        tbody.innerHTML = '';
+
+                        if (items.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="4">No items found in this library.</td></tr>';
+                            return;
+                        }
+
+                        items.forEach(function (item) {
+                            var row = document.createElement('tr');
+                            
+                            var nameCell = document.createElement('td');
+                            nameCell.textContent = item.Name;
+                            
+                            var statusCell = document.createElement('td');
+                            statusCell.innerHTML = '<span style="color: ' + (item.HasSubtitles ? '#52B54B' : '#CC7B19') + ';">' + 
+                                (item.HasSubtitles ? 'Has Subtitles' : 'No Subtitles') + '</span>';
+                            
+                            var typeCell = document.createElement('td');
+                            typeCell.textContent = item.Type;
+                            
+                            var actionsCell = document.createElement('td');
+                            
+                            var generateBtn = document.createElement('button');
+                            generateBtn.setAttribute('is', 'emby-button');
+                            generateBtn.className = 'raised';
+                            generateBtn.innerHTML = '<span>Generate</span>';
+                            generateBtn.onclick = function() { JellySubtitlesConfig.generateSubtitle(item.Id); };
+                            
+                            var statusBtn = document.createElement('button');
+                            statusBtn.setAttribute('is', 'emby-button');
+                            statusBtn.className = 'raised';
+                            statusBtn.style.marginLeft = '0.5em';
+                            statusBtn.innerHTML = '<span>Status</span>';
+                            statusBtn.onclick = function() { JellySubtitlesConfig.checkStatus(item.Id); };
+                            
+                            actionsCell.appendChild(generateBtn);
+                            actionsCell.appendChild(statusBtn);
+                            
+                            row.appendChild(nameCell);
+                            row.appendChild(statusCell);
+                            row.appendChild(typeCell);
+                            row.appendChild(actionsCell);
+                            tbody.appendChild(row);
                         });
-                        
-                        var statusBtn = document.createElement('button');
-                        statusBtn.setAttribute('is', 'emby-button');
-                        statusBtn.className = 'raised emby-button';
-                        statusBtn.textContent = 'Status';
-                        statusBtn.addEventListener('click', function() {
-                            checkStatus(item.Id);
-                        });
-                        
-                        var actionsCell = document.createElement('td');
-                        actionsCell.appendChild(generateBtn);
-                        actionsCell.appendChild(document.createTextNode(' '));
-                        actionsCell.appendChild(statusBtn);
-                        
-                        row.innerHTML = 
-                            '<td>' + item.Name + '</td>' +
-                            '<td><span style="color: ' + (item.HasSubtitles ? 'green' : 'orange') + ';">' + 
-                                (item.HasSubtitles ? 'Has Subtitles' : 'No Subtitles') + '</span></td>' +
-                            '<td>' + item.Type + '</td>';
-                        row.appendChild(actionsCell);
-                        tbody.appendChild(row);
+                    }).catch(function (error) {
+                        console.error('Error loading library items:', error);
+                        tbody.innerHTML = '<tr><td colspan="4">Error loading items.</td></tr>';
                     });
-                }).catch(function (error) {
-                    console.error('Error loading library items:', error);
-                    Dashboard.alert('Error loading library items: ' + (error.message || error));
-                });
-            }
+                },
+                generateSubtitle: function (itemId) {
+                    if (!confirm('Generate subtitles for this item? This may take a while.')) {
+                        return;
+                    }
 
-            function generateSubtitle(itemId) {
-                if (!confirm('Generate subtitles for this item? This may take a while.')) {
-                    return;
-                }
-
-                Dashboard.showLoadingMsg();
-                ApiClient.ajax({
-                    type: 'POST',
-                    url: ApiClient.getUrl('Plugins/JellySubtitles/Items/' + itemId + '/Generate?language=en')
-                }).then(function (result) {
-                    Dashboard.hideLoadingMsg();
-                    Dashboard.alert('Subtitle generation started. Check status in a few minutes.');
-                    // Refresh items after a delay
-                    setTimeout(function() {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.ajax({
+                        type: 'POST',
+                        url: ApiClient.getUrl('Plugins/JellySubtitles/Items/' + itemId + '/Generate?language=en')
+                    }).then(function (result) {
+                        Dashboard.hideLoadingMsg();
+                        Dashboard.alert('Subtitle generation started. Check status in a few minutes.');
                         var libraryId = document.querySelector('#selectLibrary').value;
                         if (libraryId) {
-                            loadLibraryItems(libraryId);
+                            setTimeout(function() { JellySubtitlesConfig.loadLibraryItems(libraryId); }, 2000);
                         }
-                    }, 2000);
-                }).catch(function (error) {
-                    Dashboard.hideLoadingMsg();
-                    console.error('Error generating subtitle:', error);
-                    Dashboard.alert('Error generating subtitle: ' + (error.message || error));
-                });
-            }
+                    }).catch(function (error) {
+                        Dashboard.hideLoadingMsg();
+                        console.error('Error generating subtitle:', error);
+                        Dashboard.alert('Error generating subtitle: ' + (error.message || 'Unknown error'));
+                    });
+                },
+                checkStatus: function (itemId) {
+                    ApiClient.ajax({
+                        type: 'GET',
+                        url: ApiClient.getUrl('Plugins/JellySubtitles/Items/' + itemId + '/Status')
+                    }).then(function (status) {
+                        var message = 'Subtitle Status:\n';
+                        message += 'Has Generated Subtitle: ' + (status.HasGeneratedSubtitle ? 'Yes' : 'No');
+                        if (status.SubtitlePath) {
+                            message += '\nPath: ' + status.SubtitlePath;
+                        }
+                        Dashboard.alert(message);
+                    }).catch(function (error) {
+                        console.error('Error checking status:', error);
+                        Dashboard.alert('Error checking status: ' + (error.message || 'Unknown error'));
+                    });
+                }
+            };
 
-            function checkStatus(itemId) {
-                ApiClient.ajax({
-                    type: 'GET',
-                    url: ApiClient.getUrl('Plugins/JellySubtitles/Items/' + itemId + '/Status')
-                }).then(function (status) {
-                    var message = 'Subtitle Status:\n';
-                    message += 'Has Generated Subtitle: ' + (status.HasGeneratedSubtitle ? 'Yes' : 'No');
-                    if (status.SubtitlePath) {
-                        message += '\nPath: ' + status.SubtitlePath;
-                    }
-                    Dashboard.alert(message);
-                }).catch(function (error) {
-                    console.error('Error checking status:', error);
-                    Dashboard.alert('Error checking status: ' + (error.message || error));
-                });
-            }
-
-            // Library selection change handler
-            document.querySelector('#selectLibrary').addEventListener('change', function (e) {
-                loadLibraryItems(e.target.value);
+            document.querySelector('[data-role="page"]').addEventListener('pageshow', function () {
+                JellySubtitlesConfig.loadConfiguration(this);
             });
 
             document.querySelector('.jellySubtitlesConfigurationForm').addEventListener('submit', function (e) {
                 e.preventDefault();
-                Dashboard.showLoadingMsg();
-
-                var config = {
-                    SelectedProvider: document.querySelector('#selectProvider').value,
-                    WhisperModelPath: document.querySelector('#txtWhisperModelPath').value,
-                    EnableAutoGeneration: document.querySelector('#chkEnableAutoGeneration').checked
-                };
-
-                ApiClient.getPluginConfiguration(JellySubtitlesConfig.pluginId).then(function (result) {
-                    result.SelectedProvider = config.SelectedProvider;
-                    result.WhisperModelPath = config.WhisperModelPath;
-                    result.EnableAutoGeneration = config.EnableAutoGeneration;
-
-                    ApiClient.updatePluginConfiguration(JellySubtitlesConfig.pluginId, result).then(function (result) {
-                        Dashboard.hideLoadingMsg();
-                        Dashboard.processPluginConfigurationUpdateResult(result);
-                    });
-                });
+                JellySubtitlesConfig.saveConfiguration(this.closest('[data-role="page"]'));
+                return false;
             });
 
-            // Initialize tab buttons
-            (function() {
-                document.querySelectorAll('[data-tab]').forEach(function(btn) {
-                    btn.addEventListener('click', function() {
-                        var tabId = this.getAttribute('data-tab');
-                        if (tabId) {
-                            showTab(tabId);
-                        }
-                    });
-                });
-            })();
-
-            // Load configuration
-            document.addEventListener('pageshow', function (e) {
-                ApiClient.getPluginConfiguration(JellySubtitlesConfig.pluginId).then(function (config) {
-                    if (config) {
-                        document.querySelector('#selectProvider').value = config.SelectedProvider || 'Whisper';
-                        document.querySelector('#txtWhisperModelPath').value = config.WhisperModelPath || '';
-                        document.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration || false;
-                    }
-                }).catch(function(error) {
-                    console.error('Error loading configuration:', error);
-                });
+            document.querySelector('#selectLibrary').addEventListener('change', function (e) {
+                JellySubtitlesConfig.loadLibraryItems(e.target.value);
             });
         </script>
     </div>
 </body>
-
 </html>
