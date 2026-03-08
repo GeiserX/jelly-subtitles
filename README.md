@@ -3,9 +3,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/GeiserX/jelly-subtitles/releases"><img src="https://img.shields.io/github/v/release/GeiserX/jelly-subtitles?style=flat-square&color=6B4C9A" alt="Release"></a>
+  <a href="https://github.com/GeiserX/jelly-subtitles/releases"><img src="https://img.shields.io/github/v/release/GeiserX/jelly-subtitles?style=flat-square&logo=github&color=6B4C9A" alt="Release"></a>
   <a href="https://github.com/GeiserX/jelly-subtitles/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0%20with%20Commons%20Clause-blue?style=flat-square" alt="License"></a>
-  <img src="https://img.shields.io/badge/.NET-9.0-512BD4?style=flat-square" alt=".NET 9.0">
+  <img src="https://img.shields.io/badge/.NET-9.0-512BD4?style=flat-square&logo=dotnet&logoColor=white" alt=".NET 9.0">
   <img src="https://img.shields.io/badge/Jellyfin-10.11%2B-6B4C9A?style=flat-square" alt="Jellyfin 10.11+">
 </p>
 
