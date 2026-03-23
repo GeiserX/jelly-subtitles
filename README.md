@@ -100,6 +100,11 @@ A scheduled task named **Generate Subtitles** is registered under the **JellySub
 
 Temporary audio files are cleaned up automatically after processing.
 
+## Demos
+
+- [Subtitle generation demo (live stream)](https://youtube.com/live/7pPMtL0e8eE)
+- [Extended walkthrough (live stream)](https://youtube.com/live/9ns0jZ_VBC4)
+
 ## Roadmap
 
 - [ ] **Parakeet provider** -- NVIDIA Parakeet integration for GPU-accelerated transcription.
