@@ -167,20 +167,11 @@
                 ],
 
                 ajaxGet: function (url) {
-                    // Compatibility wrapper: handles both Jellyfin 10.10 (returns parsed JSON)
-                    // and 10.11+ (may return Response object from fetch API)
-                    return ApiClient.ajax({
-                        type: 'GET',
-                        url: url,
-                        dataType: 'json'
-                    }).then(function (result) {
-                        if (result && typeof result.json === 'function') {
-                            return result.json();
-                        }
-                        if (typeof result === 'string') {
-                            return JSON.parse(result);
-                        }
-                        return result;
+                    return fetch(url, {
+                        headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                    }).then(function (resp) {
+                        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                        return resp.json();
                     });
                 },
 
