@@ -8,6 +8,14 @@
     "category": "Subtitles",
     "versions": [
       {
+        "version": "2.0.0.0",
+        "changelog": "See https://github.com/GeiserX/jelly-subtitles/releases",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/GeiserX/jelly-subtitles/releases/download/v2.0.0.0/JellySubtitles_2.0.0.0.zip",
+        "checksum": "aec2be0940106922bd3f002b2da8b414",
+        "timestamp": "2026-03-24T16:20:00Z"
+      },
+      {
         "version": "1.0.4.2",
         "changelog": "See https://github.com/GeiserX/jelly-subtitles/releases",
         "targetAbi": "10.11.0.0",
