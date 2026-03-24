@@ -200,6 +200,7 @@
 
                 saveConfiguration: function (page) {
                     ApiClient.getPluginConfiguration(JellySubtitlesConfig.pluginId).then(function (config) {
+                        var wasAutoGenEnabled = config.EnableAutoGeneration;
                         config.SelectedProvider = page.querySelector('#selectProvider').value;
                         config.WhisperBinaryPath = page.querySelector('#txtWhisperBinaryPath').value;
                         config.WhisperModelPath = page.querySelector('#txtWhisperModelPath').value;
@@ -207,8 +208,18 @@
                         config.EnableAutoGeneration = page.querySelector('#chkEnableAutoGeneration').checked;
                         ApiClient.updatePluginConfiguration(JellySubtitlesConfig.pluginId, config).then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);
-                            // Refresh model list in case path changed
                             JellySubtitlesConfig.loadModels();
+                            // If auto-generation was just enabled, trigger the task immediately
+                            if (config.EnableAutoGeneration && !wasAutoGenEnabled) {
+                                ApiClient.ajax({
+                                    type: 'POST',
+                                    url: ApiClient.getUrl('Plugins/JellySubtitles/RunTask')
+                                }).then(function () {
+                                    Dashboard.alert('Subtitle generation task started.');
+                                }).catch(function () {
+                                    // Task may already be running, that's fine
+                                });
+                            }
                         });
                     });
                 },

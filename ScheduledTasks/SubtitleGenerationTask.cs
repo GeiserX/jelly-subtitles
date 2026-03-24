@@ -16,20 +16,17 @@ namespace JellySubtitles.ScheduledTasks
     public class SubtitleGenerationTask : IScheduledTask
     {
         private readonly ILibraryManager _libraryManager;
+        private readonly ILoggerFactory _loggerFactory;
         private readonly ILogger<SubtitleGenerationTask> _logger;
-        private readonly ILogger<SubtitleManager> _managerLogger;
-        private readonly ILogger<WhisperProvider> _providerLogger;
 
         public SubtitleGenerationTask(
             ILibraryManager libraryManager,
             ILogger<SubtitleGenerationTask> logger,
-            ILogger<SubtitleManager> managerLogger,
-            ILogger<WhisperProvider> providerLogger)
+            ILoggerFactory loggerFactory)
         {
             _libraryManager = libraryManager;
             _logger = logger;
-            _managerLogger = managerLogger;
-            _providerLogger = providerLogger;
+            _loggerFactory = loggerFactory;
         }
 
         public string Name => "Generate Subtitles";
@@ -39,7 +36,18 @@ namespace JellySubtitles.ScheduledTasks
 
         public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
         {
-            return Array.Empty<TaskTriggerInfo>();
+            return new[]
+            {
+                new TaskTriggerInfo
+                {
+                    Type = TaskTriggerInfoType.DailyTrigger,
+                    TimeOfDayTicks = TimeSpan.FromHours(2).Ticks // Daily at 2 AM
+                },
+                new TaskTriggerInfo
+                {
+                    Type = TaskTriggerInfoType.StartupTrigger
+                }
+            };
         }
 
         public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
@@ -59,8 +67,6 @@ namespace JellySubtitles.ScheduledTasks
                 return;
             }
 
-            var manager = new SubtitleManager(_libraryManager, _managerLogger);
-            var provider = new WhisperProvider(_providerLogger, config.WhisperModelPath, config.WhisperBinaryPath);
             var language = config.DefaultLanguage;
 
             // Collect all video items from enabled libraries
@@ -71,7 +77,6 @@ namespace JellySubtitles.ScheduledTasks
 
             if (enabledLibraryIds.Count == 0)
             {
-                // If no libraries are explicitly enabled, scan all libraries
                 var allLibraries = _libraryManager.GetVirtualFolders();
                 enabledLibraryIds = allLibraries
                     .Select(vf => Guid.Parse(vf.ItemId))
@@ -104,36 +109,19 @@ namespace JellySubtitles.ScheduledTasks
                 return;
             }
 
-            var completed = 0;
-            var failed = 0;
-
+            // Enqueue all items into the normal (low-priority) queue
+            var queue = SubtitleQueueService.Instance;
             foreach (var item in allItems)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                try
-                {
-                    _logger.LogInformation("Processing [{Current}/{Total}] {ItemName}",
-                        completed + 1, allItems.Count, item.Name);
-
-                    await manager.GenerateSubtitleAsync(item, provider, language, cancellationToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    failed++;
-                    _logger.LogError(ex, "Failed to generate subtitle for {ItemName}", item.Name);
-                }
-
-                completed++;
-                progress.Report((double)completed / allItems.Count * 100);
+                queue.EnqueueNormal(item, language);
             }
 
-            _logger.LogInformation("Subtitle generation task complete. Processed: {Processed}, Failed: {Failed}",
-                completed, failed);
+            _logger.LogInformation("Enqueued {Count} items for subtitle generation", allItems.Count);
+
+            // Process the queue (manual/priority items will be interleaved first)
+            await queue.ProcessQueueAsync(_libraryManager, _loggerFactory, progress, cancellationToken);
+
+            _logger.LogInformation("Subtitle generation task complete");
         }
     }
 }

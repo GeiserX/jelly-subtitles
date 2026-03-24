@@ -10,6 +10,7 @@ using JellySubtitles.Providers;
 using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,15 +26,18 @@ namespace JellySubtitles.Api
         private readonly ILibraryManager _libraryManager;
         private readonly ILogger<SubtitleController> _logger;
         private readonly ILoggerFactory _loggerFactory;
+        private readonly ITaskManager _taskManager;
 
         public SubtitleController(
             ILibraryManager libraryManager,
             ILogger<SubtitleController> logger,
-            ILoggerFactory loggerFactory)
+            ILoggerFactory loggerFactory,
+            ITaskManager taskManager)
         {
             _libraryManager = libraryManager;
             _logger = logger;
             _loggerFactory = loggerFactory;
+            _taskManager = taskManager;
         }
 
         private SubtitleManager GetSubtitleManager()
@@ -122,6 +126,7 @@ namespace JellySubtitles.Api
 
         /// <summary>
         /// Generates subtitles for a specific item.
+        /// Manual requests are placed at the front of the queue, ahead of auto-generation.
         /// Language defaults to the plugin's configured default (typically "auto").
         /// "auto" detects the audio language from the file metadata.
         /// </summary>
@@ -147,23 +152,21 @@ namespace JellySubtitles.Api
                 var config = Plugin.Instance.Configuration;
                 var targetLanguage = language ?? config.DefaultLanguage;
 
+                // Enqueue as priority (ahead of auto-generation items)
+                var queue = SubtitleQueueService.Instance;
+                var completionTask = queue.EnqueuePriorityAsync(video, targetLanguage);
+                _logger.LogInformation("Queued priority subtitle generation for {ItemName} [{Language}]", item.Name, targetLanguage);
+
+                // Kick off queue processing if not already running
                 var loggerFactory = HttpContext.RequestServices.GetService(typeof(ILoggerFactory)) as ILoggerFactory;
-                if (loggerFactory == null)
+                if (loggerFactory != null)
                 {
-                    throw new InvalidOperationException("Logger factory not available");
+                    _ = Task.Run(() => queue.ProcessQueueAsync(
+                        _libraryManager, loggerFactory, null, cancellationToken), cancellationToken);
                 }
 
-                ISubtitleProvider provider = config.SelectedProvider switch
-                {
-                    "Whisper" => new WhisperProvider(
-                        loggerFactory.CreateLogger<WhisperProvider>(),
-                        config.WhisperModelPath,
-                        config.WhisperBinaryPath),
-                    _ => throw new NotSupportedException($"Provider {config.SelectedProvider} is not supported")
-                };
-
-                var subtitleManager = GetSubtitleManager();
-                await subtitleManager.GenerateSubtitleAsync(video, provider, targetLanguage, cancellationToken);
+                // Wait for this specific item to complete
+                await completionTask;
 
                 return Ok(new { message = "Subtitle generation complete", language = targetLanguage });
             }
@@ -300,6 +303,24 @@ namespace JellySubtitles.Api
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error listing models");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Triggers the subtitle generation scheduled task immediately.
+        /// </summary>
+        [HttpPost("RunTask")]
+        public ActionResult RunTask()
+        {
+            try
+            {
+                _taskManager.QueueScheduledTask<JellySubtitles.ScheduledTasks.SubtitleGenerationTask>();
+                return Ok(new { message = "Subtitle generation task queued" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error triggering subtitle generation task");
                 return StatusCode(500, new { error = ex.Message });
             }
         }
