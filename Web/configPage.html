@@ -127,12 +127,25 @@
                         <tbody id="mediaTableBody">
                         </tbody>
                     </table>
+                    <div id="paginationControls" style="display:none; margin-top:1em; text-align:center; align-items:center; justify-content:center; gap:1em;">
+                        <button is="emby-button" id="btnPrevPage" class="raised" style="min-width:80px;">
+                            <span>Previous</span>
+                        </button>
+                        <span id="pageInfo" style="opacity:0.8; min-width:150px; display:inline-block;"></span>
+                        <button is="emby-button" id="btnNextPage" class="raised" style="min-width:80px;">
+                            <span>Next</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
         <script type="text/javascript">
             var JellySubtitlesConfig = {
                 pluginId: '97124bd9-c8cd-4a53-a213-e593aa3fef52',
+                pageSize: 50,
+                currentStartIndex: 0,
+                currentTotalCount: 0,
+                currentLibraryId: '',
 
                 languageOptions: [
                     { value: 'auto', label: 'Auto-detect' },
@@ -261,35 +274,43 @@
                     });
                 },
 
-                loadLibraryItems: function (libraryId) {
+                loadLibraryItems: function (libraryId, startIndex) {
                     var tbody = document.querySelector('#mediaTableBody');
+                    var pagination = document.querySelector('#paginationControls');
+
                     if (!libraryId) {
                         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2em;opacity:0.7;">Select a library to view items.</td></tr>';
+                        pagination.style.display = 'none';
                         return;
                     }
+
+                    JellySubtitlesConfig.currentLibraryId = libraryId;
+                    startIndex = startIndex || 0;
+                    JellySubtitlesConfig.currentStartIndex = startIndex;
 
                     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2em;">Loading...</td></tr>';
 
                     JellySubtitlesConfig.ajaxGet(
-                        ApiClient.getUrl('Plugins/JellySubtitles/Libraries/' + libraryId + '/Items')
-                    ).then(function (items) {
+                        ApiClient.getUrl('Plugins/JellySubtitles/Libraries/' + libraryId + '/Items', {
+                            startIndex: startIndex,
+                            limit: JellySubtitlesConfig.pageSize
+                        })
+                    ).then(function (result) {
                         tbody.innerHTML = '';
 
-                        if (!items || items.length === 0) {
+                        var items = result.Items || [];
+                        var totalCount = result.TotalCount || 0;
+                        JellySubtitlesConfig.currentTotalCount = totalCount;
+
+                        if (items.length === 0) {
                             tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2em;opacity:0.7;">No items found in this library.</td></tr>';
+                            pagination.style.display = 'none';
                             return;
                         }
 
-                        // Show only playable items (episodes and movies)
-                        var playable = items.filter(function (i) { return i.Type === 'Episode' || i.Type === 'Movie'; });
-                        if (playable.length === 0) playable = items;
-
-                        playable.forEach(function (item) {
-                            if (item.Type !== 'Episode' && item.Type !== 'Movie') return;
-
+                        items.forEach(function (item) {
                             var row = document.createElement('tr');
 
-                            // Name
                             var nameCell = document.createElement('td');
                             nameCell.textContent = item.Name;
                             nameCell.style.maxWidth = '350px';
@@ -298,18 +319,15 @@
                             nameCell.style.whiteSpace = 'nowrap';
                             nameCell.title = item.Path || item.Name;
 
-                            // Type
                             var typeCell = document.createElement('td');
                             typeCell.textContent = item.Type;
 
-                            // Subtitle status
                             var statusCell = document.createElement('td');
                             statusCell.style.textAlign = 'center';
                             statusCell.innerHTML = item.HasSubtitles
                                 ? '<span style="color:#52B54B;" title="Has subtitles">&#10003;</span>'
                                 : '<span style="color:#CC7B19;" title="No subtitles">&#10005;</span>';
 
-                            // Per-item language selector
                             var langCell = document.createElement('td');
                             var langSelect = document.createElement('select');
                             langSelect.setAttribute('is', 'emby-select');
@@ -324,7 +342,6 @@
                             });
                             langCell.appendChild(langSelect);
 
-                            // Actions
                             var actionsCell = document.createElement('td');
                             actionsCell.style.textAlign = 'right';
                             actionsCell.style.whiteSpace = 'nowrap';
@@ -345,9 +362,24 @@
                             row.appendChild(actionsCell);
                             tbody.appendChild(row);
                         });
+
+                        // Update pagination controls
+                        var currentPage = Math.floor(startIndex / JellySubtitlesConfig.pageSize) + 1;
+                        var totalPages = Math.ceil(totalCount / JellySubtitlesConfig.pageSize);
+
+                        if (totalPages > 1) {
+                            pagination.style.display = 'flex';
+                            document.querySelector('#pageInfo').textContent =
+                                'Page ' + currentPage + ' of ' + totalPages + ' (' + totalCount + ' items)';
+                            document.querySelector('#btnPrevPage').disabled = (startIndex <= 0);
+                            document.querySelector('#btnNextPage').disabled = (startIndex + JellySubtitlesConfig.pageSize >= totalCount);
+                        } else {
+                            pagination.style.display = 'none';
+                        }
                     }).catch(function (error) {
                         console.error('JellySubtitles: error loading library items', error);
                         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2em;color:#CC7B19;">Error loading items. Check browser console.</td></tr>';
+                        pagination.style.display = 'none';
                     });
                 },
 
@@ -378,7 +410,7 @@
                         Dashboard.alert('Subtitles generated successfully for "' + itemName + '".');
                         var libraryId = document.querySelector('#selectLibrary').value;
                         if (libraryId) {
-                            JellySubtitlesConfig.loadLibraryItems(libraryId);
+                            JellySubtitlesConfig.loadLibraryItems(libraryId, JellySubtitlesConfig.currentStartIndex);
                         }
                     }).catch(function (error) {
                         if (btn) {
@@ -408,7 +440,21 @@
             });
 
             document.querySelector('#selectLibrary').addEventListener('change', function (e) {
-                JellySubtitlesConfig.loadLibraryItems(e.target.value);
+                JellySubtitlesConfig.currentStartIndex = 0;
+                JellySubtitlesConfig.loadLibraryItems(e.target.value, 0);
+            });
+
+            document.querySelector('#btnPrevPage').addEventListener('click', function () {
+                var newStart = JellySubtitlesConfig.currentStartIndex - JellySubtitlesConfig.pageSize;
+                if (newStart < 0) newStart = 0;
+                JellySubtitlesConfig.loadLibraryItems(JellySubtitlesConfig.currentLibraryId, newStart);
+            });
+
+            document.querySelector('#btnNextPage').addEventListener('click', function () {
+                var newStart = JellySubtitlesConfig.currentStartIndex + JellySubtitlesConfig.pageSize;
+                if (newStart < JellySubtitlesConfig.currentTotalCount) {
+                    JellySubtitlesConfig.loadLibraryItems(JellySubtitlesConfig.currentLibraryId, newStart);
+                }
             });
         </script>
     </div>

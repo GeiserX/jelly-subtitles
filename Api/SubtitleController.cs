@@ -67,10 +67,13 @@ namespace JellySubtitles.Api
         }
 
         /// <summary>
-        /// Gets items in a library.
+        /// Gets items in a library with pagination.
         /// </summary>
         [HttpGet("Libraries/{libraryId}/Items")]
-        public ActionResult<IEnumerable<ItemInfo>> GetLibraryItems([FromRoute] string libraryId)
+        public ActionResult<PagedItemResult> GetLibraryItems(
+            [FromRoute] string libraryId,
+            [FromQuery] int startIndex = 0,
+            [FromQuery] int limit = 50)
         {
             try
             {
@@ -80,24 +83,35 @@ namespace JellySubtitles.Api
                     return NotFound(new { error = "Library not found" });
                 }
 
-                var includeTypes = GetBaseItemKinds("Movie,Episode,Series,Season");
-                var items = _libraryManager.GetItemList(new MediaBrowser.Controller.Entities.InternalItemsQuery
+                var includeTypes = GetBaseItemKinds("Movie,Episode");
+                var allItems = _libraryManager.GetItemList(new MediaBrowser.Controller.Entities.InternalItemsQuery
                 {
                     ParentId = library.Id,
                     IncludeItemTypes = includeTypes,
                     Recursive = true
-                })
-                .Select(item => new ItemInfo
-                {
-                    Id = item.Id.ToString(),
-                    Name = item.Name,
-                    Type = item.GetType().Name,
-                    Path = item.Path,
-                    HasSubtitles = item is Video video && video.HasSubtitles
-                })
-                .ToList();
+                });
 
-                return Ok(items);
+                var totalCount = allItems.Count;
+
+                var items = allItems
+                    .Skip(startIndex)
+                    .Take(limit)
+                    .Select(item => new ItemInfo
+                    {
+                        Id = item.Id.ToString(),
+                        Name = item.Name,
+                        Type = item.GetType().Name,
+                        Path = item.Path,
+                        HasSubtitles = item is Video video && video.HasSubtitles
+                    })
+                    .ToList();
+
+                return Ok(new PagedItemResult
+                {
+                    Items = items,
+                    TotalCount = totalCount,
+                    StartIndex = startIndex
+                });
             }
             catch (Exception ex)
             {
@@ -342,6 +356,13 @@ namespace JellySubtitles.Api
         public string Name { get; set; } = string.Empty;
         public double SizeMB { get; set; }
         public bool IsActive { get; set; }
+    }
+
+    public class PagedItemResult
+    {
+        public List<ItemInfo> Items { get; set; } = new List<ItemInfo>();
+        public int TotalCount { get; set; }
+        public int StartIndex { get; set; }
     }
 }
 
