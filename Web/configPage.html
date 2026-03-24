@@ -69,7 +69,7 @@
                             <option value="gl">Galician</option>
                         </select>
                         <div class="fieldDescription">
-                            <strong>Auto-detect</strong> reads the audio stream language tags from each file and generates subtitles accordingly.
+                            <strong>Auto-detect</strong> reads the audio stream language tags from each file and generates subtitles for every audio language present.
                             If no tags are found, whisper will auto-detect the spoken language.
                             Choose a specific language to force all transcriptions to use it.
                         </div>
@@ -80,7 +80,11 @@
                             <input is="emby-checkbox" type="checkbox" id="chkEnableAutoGeneration" name="EnableAutoGeneration" />
                             <span>Enable Auto-Generation</span>
                         </label>
-                        <div class="fieldDescription">Automatically generate subtitles for new media in enabled libraries via the scheduled task.</div>
+                        <div class="fieldDescription">
+                            When enabled, the scheduled task scans selected libraries and generates subtitles
+                            only for items that <strong>do not already have any subtitles</strong>.
+                            Existing subtitles (embedded or external) are never overwritten.
+                        </div>
                     </div>
 
                     <button is="emby-button" type="submit" class="raised button-submit block">
@@ -90,34 +94,13 @@
 
                 <br />
                 <h2>Subtitle Management</h2>
-                <p>Select a library, then generate subtitles for individual items.</p>
+                <p>Select a library to browse items and generate subtitles on demand.</p>
 
                 <div style="display: flex; gap: 1em; align-items: flex-end; flex-wrap: wrap;">
                     <div class="selectContainer" style="flex: 1; min-width: 200px;">
                         <label class="selectLabel" for="selectLibrary">Library</label>
                         <select is="emby-select" id="selectLibrary">
                             <option value="">Select a Library...</option>
-                        </select>
-                    </div>
-                    <div class="selectContainer" style="flex: 0 0 180px;">
-                        <label class="selectLabel" for="selectGenerateLanguage">Language</label>
-                        <select is="emby-select" id="selectGenerateLanguage">
-                            <option value="auto">Auto-detect</option>
-                            <option value="en">English</option>
-                            <option value="es">Spanish</option>
-                            <option value="fr">French</option>
-                            <option value="de">German</option>
-                            <option value="it">Italian</option>
-                            <option value="pt">Portuguese</option>
-                            <option value="ru">Russian</option>
-                            <option value="ja">Japanese</option>
-                            <option value="zh">Chinese</option>
-                            <option value="ko">Korean</option>
-                            <option value="ar">Arabic</option>
-                            <option value="nl">Dutch</option>
-                            <option value="pl">Polish</option>
-                            <option value="tr">Turkish</option>
-                            <option value="sv">Swedish</option>
                         </select>
                     </div>
                 </div>
@@ -129,6 +112,7 @@
                                 <th style="text-align: left;">Name</th>
                                 <th style="text-align: left;">Type</th>
                                 <th style="text-align: center;">Subtitles</th>
+                                <th style="text-align: left;">Language</th>
                                 <th style="text-align: right;">Actions</th>
                             </tr>
                         </thead>
@@ -142,6 +126,43 @@
             var JellySubtitlesConfig = {
                 pluginId: '97124bd9-c8cd-4a53-a213-e593aa3fef52',
 
+                languageOptions: [
+                    { value: 'auto', label: 'Auto-detect' },
+                    { value: 'en', label: 'English' },
+                    { value: 'es', label: 'Spanish' },
+                    { value: 'fr', label: 'French' },
+                    { value: 'de', label: 'German' },
+                    { value: 'it', label: 'Italian' },
+                    { value: 'pt', label: 'Portuguese' },
+                    { value: 'ru', label: 'Russian' },
+                    { value: 'ja', label: 'Japanese' },
+                    { value: 'zh', label: 'Chinese' },
+                    { value: 'ko', label: 'Korean' },
+                    { value: 'ar', label: 'Arabic' },
+                    { value: 'nl', label: 'Dutch' },
+                    { value: 'pl', label: 'Polish' },
+                    { value: 'tr', label: 'Turkish' },
+                    { value: 'sv', label: 'Swedish' }
+                ],
+
+                ajaxGet: function (url) {
+                    // Compatibility wrapper: handles both Jellyfin 10.10 (returns parsed JSON)
+                    // and 10.11+ (may return Response object from fetch API)
+                    return ApiClient.ajax({
+                        type: 'GET',
+                        url: url,
+                        dataType: 'json'
+                    }).then(function (result) {
+                        if (result && typeof result.json === 'function') {
+                            return result.json();
+                        }
+                        if (typeof result === 'string') {
+                            return JSON.parse(result);
+                        }
+                        return result;
+                    });
+                },
+
                 loadConfiguration: function (page) {
                     ApiClient.getPluginConfiguration(JellySubtitlesConfig.pluginId).then(function (config) {
                         if (config) {
@@ -150,9 +171,6 @@
                             page.querySelector('#txtWhisperModelPath').value = config.WhisperModelPath || '';
                             page.querySelector('#selectDefaultLanguage').value = config.DefaultLanguage || 'auto';
                             page.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration || false;
-
-                            // Sync the management language selector with the configured default
-                            page.querySelector('#selectGenerateLanguage').value = config.DefaultLanguage || 'auto';
                         }
                         JellySubtitlesConfig.loadLibraries();
                     });
@@ -172,12 +190,15 @@
                 },
 
                 loadLibraries: function () {
-                    ApiClient.ajax({
-                        type: 'GET',
-                        url: ApiClient.getUrl('Plugins/JellySubtitles/Libraries')
-                    }).then(function (libraries) {
+                    JellySubtitlesConfig.ajaxGet(
+                        ApiClient.getUrl('Plugins/JellySubtitles/Libraries')
+                    ).then(function (libraries) {
                         var select = document.querySelector('#selectLibrary');
                         select.innerHTML = '<option value="">Select a Library...</option>';
+                        if (!libraries || !Array.isArray(libraries)) {
+                            console.error('JellySubtitles: unexpected libraries response', libraries);
+                            return;
+                        }
                         libraries.forEach(function (lib) {
                             var option = document.createElement('option');
                             option.value = lib.Id;
@@ -185,103 +206,135 @@
                             select.appendChild(option);
                         });
                     }).catch(function (error) {
-                        console.error('Error loading libraries:', error);
+                        console.error('JellySubtitles: error loading libraries', error);
                     });
                 },
 
                 loadLibraryItems: function (libraryId) {
                     var tbody = document.querySelector('#mediaTableBody');
                     if (!libraryId) {
-                        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:2em;opacity:0.7;">Select a library to view items.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2em;opacity:0.7;">Select a library to view items.</td></tr>';
                         return;
                     }
 
-                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:2em;">Loading...</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2em;">Loading...</td></tr>';
 
-                    ApiClient.ajax({
-                        type: 'GET',
-                        url: ApiClient.getUrl('Plugins/JellySubtitles/Libraries/' + libraryId + '/Items')
-                    }).then(function (items) {
+                    JellySubtitlesConfig.ajaxGet(
+                        ApiClient.getUrl('Plugins/JellySubtitles/Libraries/' + libraryId + '/Items')
+                    ).then(function (items) {
                         tbody.innerHTML = '';
 
-                        if (items.length === 0) {
-                            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:2em;opacity:0.7;">No items found in this library.</td></tr>';
+                        if (!items || items.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2em;opacity:0.7;">No items found in this library.</td></tr>';
                             return;
                         }
 
-                        // Filter to only show episodes and movies (not series/season containers)
+                        // Show only playable items (episodes and movies)
                         var playable = items.filter(function (i) { return i.Type === 'Episode' || i.Type === 'Movie'; });
-                        if (playable.length === 0) {
-                            playable = items;
-                        }
+                        if (playable.length === 0) playable = items;
 
                         playable.forEach(function (item) {
+                            if (item.Type !== 'Episode' && item.Type !== 'Movie') return;
+
                             var row = document.createElement('tr');
 
+                            // Name
                             var nameCell = document.createElement('td');
                             nameCell.textContent = item.Name;
-                            nameCell.style.maxWidth = '400px';
+                            nameCell.style.maxWidth = '350px';
                             nameCell.style.overflow = 'hidden';
                             nameCell.style.textOverflow = 'ellipsis';
                             nameCell.style.whiteSpace = 'nowrap';
+                            nameCell.title = item.Path || item.Name;
 
+                            // Type
                             var typeCell = document.createElement('td');
                             typeCell.textContent = item.Type;
 
+                            // Subtitle status
                             var statusCell = document.createElement('td');
                             statusCell.style.textAlign = 'center';
-                            if (item.HasSubtitles) {
-                                statusCell.innerHTML = '<span style="color:#52B54B;">&#10003;</span>';
-                            } else {
-                                statusCell.innerHTML = '<span style="color:#CC7B19;">&#10005;</span>';
-                            }
+                            statusCell.innerHTML = item.HasSubtitles
+                                ? '<span style="color:#52B54B;" title="Has subtitles">&#10003;</span>'
+                                : '<span style="color:#CC7B19;" title="No subtitles">&#10005;</span>';
 
+                            // Per-item language selector
+                            var langCell = document.createElement('td');
+                            var langSelect = document.createElement('select');
+                            langSelect.setAttribute('is', 'emby-select');
+                            langSelect.style.minWidth = '120px';
+                            langSelect.style.margin = '0';
+                            langSelect.id = 'lang_' + item.Id;
+                            JellySubtitlesConfig.languageOptions.forEach(function (opt) {
+                                var o = document.createElement('option');
+                                o.value = opt.value;
+                                o.textContent = opt.label;
+                                langSelect.appendChild(o);
+                            });
+                            langCell.appendChild(langSelect);
+
+                            // Actions
                             var actionsCell = document.createElement('td');
                             actionsCell.style.textAlign = 'right';
                             actionsCell.style.whiteSpace = 'nowrap';
 
-                            if (item.Type === 'Episode' || item.Type === 'Movie') {
-                                var generateBtn = document.createElement('button');
-                                generateBtn.setAttribute('is', 'emby-button');
-                                generateBtn.className = 'raised';
-                                generateBtn.innerHTML = '<span>Generate</span>';
-                                generateBtn.onclick = function () { JellySubtitlesConfig.generateSubtitle(item.Id, item.Name); };
-                                actionsCell.appendChild(generateBtn);
-                            }
+                            var generateBtn = document.createElement('button');
+                            generateBtn.setAttribute('is', 'emby-button');
+                            generateBtn.className = 'raised';
+                            generateBtn.innerHTML = '<span>Generate</span>';
+                            generateBtn.onclick = (function (id, name) {
+                                return function () { JellySubtitlesConfig.generateSubtitle(id, name); };
+                            })(item.Id, item.Name);
+                            actionsCell.appendChild(generateBtn);
 
                             row.appendChild(nameCell);
                             row.appendChild(typeCell);
                             row.appendChild(statusCell);
+                            row.appendChild(langCell);
                             row.appendChild(actionsCell);
                             tbody.appendChild(row);
                         });
                     }).catch(function (error) {
-                        console.error('Error loading library items:', error);
-                        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:2em;color:#CC7B19;">Error loading items.</td></tr>';
+                        console.error('JellySubtitles: error loading library items', error);
+                        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2em;color:#CC7B19;">Error loading items. Check browser console.</td></tr>';
                     });
                 },
 
                 generateSubtitle: function (itemId, itemName) {
-                    var lang = document.querySelector('#selectGenerateLanguage').value;
+                    var langSelect = document.querySelector('#lang_' + itemId);
+                    var lang = langSelect ? langSelect.value : 'auto';
                     var langLabel = lang === 'auto' ? 'auto-detect' : lang;
-                    if (!confirm('Generate subtitles for "' + (itemName || itemId) + '" (' + langLabel + ')?\n\nThis may take several minutes depending on the episode length and your hardware.')) {
+
+                    if (!confirm('Generate subtitles for:\n\n"' + (itemName || itemId) + '"\nLanguage: ' + langLabel + '\n\nThis may take several minutes depending on the episode length and your hardware.')) {
                         return;
                     }
 
-                    Dashboard.showLoadingMsg();
+                    // Visual feedback
+                    var btn = event.target.closest('button');
+                    if (btn) {
+                        btn.disabled = true;
+                        btn.innerHTML = '<span>Generating...</span>';
+                    }
+
                     ApiClient.ajax({
                         type: 'POST',
                         url: ApiClient.getUrl('Plugins/JellySubtitles/Items/' + itemId + '/Generate', { language: lang })
-                    }).then(function (result) {
-                        Dashboard.hideLoadingMsg();
-                        Dashboard.alert('Subtitles generated successfully.');
+                    }).then(function () {
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = '<span>Generate</span>';
+                        }
+                        Dashboard.alert('Subtitles generated successfully for "' + itemName + '".');
                         var libraryId = document.querySelector('#selectLibrary').value;
                         if (libraryId) {
                             JellySubtitlesConfig.loadLibraryItems(libraryId);
                         }
                     }).catch(function (error) {
-                        Dashboard.hideLoadingMsg();
-                        console.error('Error generating subtitle:', error);
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = '<span>Generate</span>';
+                        }
+                        console.error('JellySubtitles: error generating subtitle', error);
                         Dashboard.alert('Error generating subtitle. Check the server log for details.');
                     });
                 }
