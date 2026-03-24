@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -37,13 +38,11 @@ namespace JellySubtitles.Providers
                 throw new FileNotFoundException($"Audio file not found: {audioPath}");
             }
 
-            // Create temporary output prefix for SRT (whisper-cli appends .srt)
             var tempOutputPrefix = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
             var tempSrtPath = tempOutputPrefix + ".srt";
-            
+
             try
             {
-                // Try whisper.cpp first (whisper-cli or main)
                 var whisperExecutable = FindWhisperExecutable();
                 if (whisperExecutable == null)
                 {
@@ -68,14 +67,12 @@ namespace JellySubtitles.Providers
                     }
                 };
 
-                var outputBuilder = new StringBuilder();
                 var errorBuilder = new StringBuilder();
 
                 process.OutputDataReceived += (sender, e) =>
                 {
                     if (!string.IsNullOrEmpty(e.Data))
                     {
-                        outputBuilder.AppendLine(e.Data);
                         _logger.LogDebug("Whisper output: {Output}", e.Data);
                     }
                 };
@@ -85,7 +82,7 @@ namespace JellySubtitles.Providers
                     if (!string.IsNullOrEmpty(e.Data))
                     {
                         errorBuilder.AppendLine(e.Data);
-                        _logger.LogWarning("Whisper error: {Error}", e.Data);
+                        _logger.LogWarning("Whisper stderr: {Error}", e.Data);
                     }
                 };
 
@@ -93,61 +90,170 @@ namespace JellySubtitles.Providers
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
 
-                await process.WaitForExitAsync(cancellationToken);
+                try
+                {
+                    await process.WaitForExitAsync(cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    try { process.Kill(entireProcessTree: true); } catch { }
+
+                    // Save whatever partial SRT whisper wrote before being killed
+                    if (File.Exists(tempSrtPath))
+                    {
+                        var partial = await File.ReadAllTextAsync(tempSrtPath);
+                        if (!string.IsNullOrWhiteSpace(partial))
+                        {
+                            _logger.LogInformation("Cancelled — returning partial SRT ({Bytes} bytes)", partial.Length);
+                            return partial;
+                        }
+                    }
+
+                    throw;
+                }
 
                 if (process.ExitCode != 0)
                 {
-                    var error = errorBuilder.ToString();
                     throw new InvalidOperationException(
-                        $"Whisper process failed with exit code {process.ExitCode}. Error: {error}");
+                        $"Whisper process failed with exit code {process.ExitCode}. Error: {errorBuilder}");
                 }
 
-                // Read the generated SRT file
                 if (File.Exists(tempSrtPath))
                 {
                     var srtContent = await File.ReadAllTextAsync(tempSrtPath, cancellationToken);
                     _logger.LogInformation("Successfully generated subtitle file");
                     return srtContent;
                 }
-                else
-                {
-                    // Try alternative output path (whisper.cpp might use different naming)
-                    var altPath = Path.ChangeExtension(audioPath, ".srt");
-                    if (File.Exists(altPath))
-                    {
-                        var srtContent = await File.ReadAllTextAsync(altPath, cancellationToken);
-                        _logger.LogInformation("Found subtitle at alternative path: {Path}", altPath);
-                        return srtContent;
-                    }
 
-                    throw new FileNotFoundException(
-                        $"Subtitle file not found at expected location: {tempSrtPath}");
+                var altPath = Path.ChangeExtension(audioPath, ".srt");
+                if (File.Exists(altPath))
+                {
+                    var srtContent = await File.ReadAllTextAsync(altPath, cancellationToken);
+                    return srtContent;
                 }
+
+                throw new FileNotFoundException($"Subtitle file not found at expected location: {tempSrtPath}");
             }
             finally
             {
-                // Clean up temp file if it exists
                 if (File.Exists(tempSrtPath))
                 {
-                    try
-                    {
-                        File.Delete(tempSrtPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to delete temp file {Path}", tempSrtPath);
-                    }
+                    try { File.Delete(tempSrtPath); }
+                    catch { }
                 }
             }
         }
 
+        /// <summary>
+        /// Parses the last end timestamp from an SRT file and returns it in seconds.
+        /// Returns 0 if the file is empty or unparseable.
+        /// </summary>
+        public static double ParseLastSrtTimestamp(string srtContent)
+        {
+            if (string.IsNullOrWhiteSpace(srtContent)) return 0;
+
+            // Match SRT timestamp lines: "00:12:34,567 --> 00:12:39,890"
+            var matches = Regex.Matches(srtContent, @"(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2}),(\d{3})");
+            if (matches.Count == 0) return 0;
+
+            var last = matches[matches.Count - 1];
+            var hours = int.Parse(last.Groups[5].Value);
+            var minutes = int.Parse(last.Groups[6].Value);
+            var seconds = int.Parse(last.Groups[7].Value);
+            var millis = int.Parse(last.Groups[8].Value);
+
+            return hours * 3600.0 + minutes * 60.0 + seconds + millis / 1000.0;
+        }
+
+        /// <summary>
+        /// Offsets all timestamps in an SRT string by the given number of seconds.
+        /// Also renumbers entries starting from the given startIndex.
+        /// </summary>
+        public static string OffsetSrt(string srtContent, double offsetSeconds, int startIndex)
+        {
+            if (string.IsNullOrWhiteSpace(srtContent)) return "";
+
+            var result = new StringBuilder();
+            int entryNum = startIndex;
+
+            var lines = srtContent.Split('\n');
+            int i = 0;
+            while (i < lines.Length)
+            {
+                var line = lines[i].Trim();
+
+                // Skip empty lines
+                if (string.IsNullOrEmpty(line)) { i++; continue; }
+
+                // Skip entry number line (we'll renumber)
+                if (int.TryParse(line, out _))
+                {
+                    i++;
+                    if (i >= lines.Length) break;
+                    line = lines[i].Trim();
+                }
+
+                // Parse timestamp line
+                var match = Regex.Match(line, @"(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})");
+                if (!match.Success) { i++; continue; }
+
+                var startTs = OffsetTimestamp(match.Groups[1].Value, offsetSeconds);
+                var endTs = OffsetTimestamp(match.Groups[2].Value, offsetSeconds);
+
+                result.AppendLine(entryNum.ToString());
+                result.AppendLine($"{startTs} --> {endTs}");
+                i++;
+
+                // Collect subtitle text lines until empty line
+                while (i < lines.Length && !string.IsNullOrWhiteSpace(lines[i]))
+                {
+                    result.AppendLine(lines[i].TrimEnd());
+                    i++;
+                }
+                result.AppendLine();
+                entryNum++;
+            }
+
+            return result.ToString();
+        }
+
+        private static string OffsetTimestamp(string timestamp, double offsetSeconds)
+        {
+            var match = Regex.Match(timestamp, @"(\d{2}):(\d{2}):(\d{2}),(\d{3})");
+            if (!match.Success) return timestamp;
+
+            var totalMs = int.Parse(match.Groups[1].Value) * 3600000
+                        + int.Parse(match.Groups[2].Value) * 60000
+                        + int.Parse(match.Groups[3].Value) * 1000
+                        + int.Parse(match.Groups[4].Value);
+
+            totalMs += (int)(offsetSeconds * 1000);
+            if (totalMs < 0) totalMs = 0;
+
+            var h = totalMs / 3600000;
+            var m = (totalMs % 3600000) / 60000;
+            var s = (totalMs % 60000) / 1000;
+            var ms = totalMs % 1000;
+
+            return $"{h:D2}:{m:D2}:{s:D2},{ms:D3}";
+        }
+
+        /// <summary>
+        /// Returns the highest entry number in an SRT string.
+        /// </summary>
+        public static int CountSrtEntries(string srtContent)
+        {
+            if (string.IsNullOrWhiteSpace(srtContent)) return 0;
+            var matches = Regex.Matches(srtContent, @"-->"); // Each entry has one --> line
+            return matches.Count;
+        }
+
         private string? FindWhisperExecutable()
         {
-            // If a custom binary path is configured, try it first
             var candidates = !string.IsNullOrEmpty(_binaryPath)
                 ? new[] { _binaryPath, "whisper-cli", "main", "whisper" }
                 : new[] { "whisper-cli", "main", "whisper" };
-            
+
             foreach (var candidate in candidates)
             {
                 try
@@ -166,18 +272,15 @@ namespace JellySubtitles.Providers
                     };
 
                     process.Start();
-                    process.WaitForExit(1000); // Wait max 1 second
-                    
-                    if (process.ExitCode == 0 || process.ExitCode == 1) // Help usually exits with 1
+                    process.WaitForExit(1000);
+
+                    if (process.ExitCode == 0 || process.ExitCode == 1)
                     {
                         _logger.LogInformation("Found Whisper executable: {Executable}", candidate);
                         return candidate;
                     }
                 }
-                catch
-                {
-                    // Continue to next candidate
-                }
+                catch { }
             }
 
             return null;

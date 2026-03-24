@@ -125,15 +125,13 @@ namespace JellySubtitles.Api
         }
 
         /// <summary>
-        /// Generates subtitles for a specific item.
-        /// If the scheduled task is running, this request is prioritised and processed next.
-        /// If no task is running, processes immediately.
+        /// Enqueues subtitle generation for a specific item. Returns 202 immediately.
+        /// A single background worker processes the queue sequentially.
         /// </summary>
         [HttpPost("Items/{itemId}/Generate")]
-        public async Task<ActionResult> GenerateSubtitle(
+        public ActionResult GenerateSubtitle(
             [FromRoute] string itemId,
-            [FromQuery] string? language = null,
-            CancellationToken cancellationToken = default)
+            [FromQuery] string? language = null)
         {
             try
             {
@@ -152,31 +150,47 @@ namespace JellySubtitles.Api
                 var targetLanguage = language ?? config.DefaultLanguage;
                 var queue = SubtitleQueueService.Instance;
 
-                // Enqueue as priority — the scheduled task drains this between items
-                var completionTask = queue.EnqueuePriorityAsync(video, targetLanguage);
-                _logger.LogInformation("Queued priority subtitle generation for {ItemName} [{Language}]", item.Name, targetLanguage);
+                queue.Enqueue(video, targetLanguage);
+                _logger.LogInformation("Queued subtitle generation for {ItemName} [{Language}]. Queue size: {Count}",
+                    item.Name, targetLanguage, queue.PriorityCount);
 
-                // If no scheduled task is running, process immediately
+                // Ensure the background drain worker is running
                 var manager = GetSubtitleManager();
                 var provider = new WhisperProvider(
                     _loggerFactory.CreateLogger<WhisperProvider>(),
                     config.WhisperModelPath,
                     config.WhisperBinaryPath);
+                queue.EnsureDraining(manager, provider, _logger, CancellationToken.None);
 
-                _ = Task.Run(async () =>
+                return Accepted(new
                 {
-                    try { await queue.DrainPriorityAsync(manager, provider, _logger, cancellationToken); }
-                    catch (Exception ex) { _logger.LogError(ex, "Error draining priority queue"); }
-                }, cancellationToken);
-
-                await completionTask;
-                return Ok(new { message = "Subtitle generation complete", language = targetLanguage });
+                    message = "Queued for subtitle generation",
+                    item = item.Name,
+                    language = targetLanguage,
+                    queueSize = queue.PriorityCount
+                });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error generating subtitle for item {ItemId}", itemId);
+                _logger.LogError(ex, "Error queuing subtitle for item {ItemId}", itemId);
                 return StatusCode(500, new { error = ex.Message });
             }
+        }
+
+        /// <summary>
+        /// Gets the current queue status.
+        /// </summary>
+        [HttpGet("Queue")]
+        public ActionResult GetQueueStatus()
+        {
+            var queue = SubtitleQueueService.Instance;
+            return Ok(new
+            {
+                isProcessing = queue.IsDraining,
+                currentItem = queue.CurrentItemName,
+                remaining = queue.PriorityCount,
+                processed = queue.ProcessedCount
+            });
         }
 
         /// <summary>

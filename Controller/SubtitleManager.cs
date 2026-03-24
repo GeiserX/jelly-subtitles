@@ -43,10 +43,39 @@ namespace JellySubtitles.Controller
             foreach (var lang in languages)
             {
                 var srtPath = Path.ChangeExtension(mediaPath, $".{lang}.generated.srt");
+                string existingSrt = "";
+                double resumeOffsetSeconds = 0;
+                int existingEntryCount = 0;
+
+                // Check for existing partial SRT to resume from
                 if (File.Exists(srtPath))
                 {
-                    _logger.LogInformation("Subtitle already exists for {ItemName} [{Language}], skipping", item.Name, lang);
-                    continue;
+                    existingSrt = await File.ReadAllTextAsync(srtPath, cancellationToken);
+                    var lastTimestamp = WhisperProvider.ParseLastSrtTimestamp(existingSrt);
+                    var mediaDuration = await GetMediaDurationAsync(mediaPath, cancellationToken);
+
+                    // Consider complete if within 30 seconds of the end (or if we can't determine duration)
+                    if (mediaDuration > 0 && lastTimestamp >= mediaDuration - 30)
+                    {
+                        _logger.LogInformation("Subtitle already complete for {ItemName} [{Language}] ({Last:F0}s / {Duration:F0}s), skipping",
+                            item.Name, lang, lastTimestamp, mediaDuration);
+                        continue;
+                    }
+
+                    if (lastTimestamp > 0)
+                    {
+                        // Partial SRT exists — resume from where it left off (with 2s overlap for safety)
+                        resumeOffsetSeconds = Math.Max(0, lastTimestamp - 2);
+                        existingEntryCount = WhisperProvider.CountSrtEntries(existingSrt);
+                        _logger.LogInformation("Resuming subtitle for {ItemName} [{Language}] from {Offset:F1}s ({Entries} existing entries)",
+                            item.Name, lang, resumeOffsetSeconds, existingEntryCount);
+                    }
+                    else if (mediaDuration <= 0)
+                    {
+                        // Can't determine duration and no timestamps — treat as complete
+                        _logger.LogInformation("Subtitle exists for {ItemName} [{Language}] (can't verify completeness), skipping", item.Name, lang);
+                        continue;
+                    }
                 }
 
                 var tempAudioPath = Path.Combine(Path.GetTempPath(), $"{item.Id}_{Guid.NewGuid()}.wav");
@@ -54,11 +83,34 @@ namespace JellySubtitles.Controller
 
                 try
                 {
-                    await ExtractAudioAsync(mediaPath, tempAudioPath, cancellationToken);
-                    var srtContent = await provider.TranscribeAsync(tempAudioPath, lang, cancellationToken);
+                    await ExtractAudioAsync(mediaPath, tempAudioPath, cancellationToken, resumeOffsetSeconds);
+                    string srtContent;
 
-                    await File.WriteAllTextAsync(srtPath, srtContent, cancellationToken);
+                    try
+                    {
+                        srtContent = await provider.TranscribeAsync(tempAudioPath, lang, cancellationToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // TranscribeAsync returns partial content on cancellation before re-throwing
+                        throw;
+                    }
+
+                    // If resuming, offset new timestamps and merge with existing content
+                    if (resumeOffsetSeconds > 0 && !string.IsNullOrWhiteSpace(existingSrt))
+                    {
+                        var offsetContent = WhisperProvider.OffsetSrt(srtContent, resumeOffsetSeconds, existingEntryCount + 1);
+                        srtContent = existingSrt.TrimEnd() + "\n\n" + offsetContent;
+                    }
+
+                    await File.WriteAllTextAsync(srtPath, srtContent, CancellationToken.None);
                     _logger.LogInformation("Saved subtitle to {SrtPath}", srtPath);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Save partial work on cancellation so we can resume later
+                    _logger.LogInformation("Cancelled — checking for partial SRT to save for {ItemName}", item.Name);
+                    throw;
                 }
                 catch (Exception ex)
                 {
@@ -175,7 +227,7 @@ namespace JellySubtitles.Controller
             return languages;
         }
 
-        private async Task ExtractAudioAsync(string videoPath, string outputAudioPath, CancellationToken cancellationToken)
+        private async Task ExtractAudioAsync(string videoPath, string outputAudioPath, CancellationToken cancellationToken, double startOffsetSeconds = 0)
         {
             var ffmpegPath = FindFfmpegExecutable();
             if (ffmpegPath == null)
@@ -184,7 +236,8 @@ namespace JellySubtitles.Controller
                     "FFmpeg not found. Ensure ffmpeg is installed and available in PATH or at /usr/lib/jellyfin-ffmpeg/ffmpeg");
             }
 
-            var arguments = $"-i \"{videoPath}\" -vn -acodec pcm_s16le -ac 1 -ar 16000 -y \"{outputAudioPath}\"";
+            var ssArg = startOffsetSeconds > 0 ? $"-ss {startOffsetSeconds:F1} " : "";
+            var arguments = $"{ssArg}-i \"{videoPath}\" -vn -acodec pcm_s16le -ac 1 -ar 16000 -y \"{outputAudioPath}\"";
             _logger.LogInformation("Running FFmpeg: {Path} {Arguments}", ffmpegPath, arguments);
 
             var process = new Process
@@ -226,6 +279,55 @@ namespace JellySubtitles.Controller
             }
 
             _logger.LogInformation("Extracted audio to {AudioPath}", outputAudioPath);
+        }
+
+        private async Task<double> GetMediaDurationAsync(string mediaPath, CancellationToken cancellationToken)
+        {
+            var ffprobePath = FindFfprobeExecutable();
+            if (ffprobePath == null) return 0;
+
+            var arguments = $"-v quiet -print_format json -show_format \"{mediaPath}\"";
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = ffprobePath,
+                    Arguments = arguments,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            var outputBuilder = new StringBuilder();
+            process.OutputDataReceived += (_, e) => { if (e.Data != null) outputBuilder.AppendLine(e.Data); };
+
+            process.Start();
+            process.BeginOutputReadLine();
+            await process.WaitForExitAsync(cancellationToken);
+
+            if (process.ExitCode != 0) return 0;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(outputBuilder.ToString());
+                if (doc.RootElement.TryGetProperty("format", out var format) &&
+                    format.TryGetProperty("duration", out var durationProp))
+                {
+                    if (double.TryParse(durationProp.GetString(), System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var duration))
+                    {
+                        return duration;
+                    }
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse FFprobe duration for {Path}", mediaPath);
+            }
+
+            return 0;
         }
 
         private string? FindFfmpegExecutable()

@@ -102,12 +102,13 @@
 
                 <br />
                 <h2>Subtitle Management</h2>
-                <p>Select a library to browse items and generate subtitles on demand.</p>
+                <p>Select a library to browse items and generate subtitles on demand.
+                    Manual requests are <strong>queued with priority</strong> and processed before auto-generated items.</p>
 
                 <div style="display: flex; gap: 1em; align-items: flex-end; flex-wrap: wrap;">
                     <div class="selectContainer" style="flex: 1; min-width: 200px;">
                         <label class="selectLabel" for="selectLibrary">Library</label>
-                        <select id="selectLibrary" class="emby-select-withcolor" style="width:100%;padding:0.4em;font-size:inherit;background:transparent;color:inherit;border:1px solid currentColor;border-radius:0.25em;">
+                        <select is="emby-select" id="selectLibrary">
                             <option value="">Select a Library...</option>
                         </select>
                     </div>
@@ -404,15 +405,14 @@
                     var lang = langSelect ? langSelect.value : 'auto';
                     var langLabel = lang === 'auto' ? 'auto-detect' : lang;
 
-                    if (!confirm('Generate subtitles for:\n\n"' + (itemName || itemId) + '"\nLanguage: ' + langLabel + '\n\nThis may take several minutes depending on the episode length and your hardware.')) {
+                    if (!confirm('Queue subtitle generation for:\n\n"' + (itemName || itemId) + '"\nLanguage: ' + langLabel + '\n\nThe item will be added to the front of the processing queue.')) {
                         return;
                     }
 
-                    // Visual feedback
                     var btn = event.target.closest('button');
                     if (btn) {
                         btn.disabled = true;
-                        btn.innerHTML = '<span>Generating...</span>';
+                        btn.innerHTML = '<span>Queuing...</span>';
                     }
 
                     ApiClient.ajax({
@@ -420,29 +420,26 @@
                         url: ApiClient.getUrl('Plugins/JellySubtitles/Items/' + itemId + '/Generate', { language: lang })
                     }).then(function () {
                         if (btn) {
-                            btn.disabled = false;
-                            btn.innerHTML = '<span>Generate</span>';
+                            btn.innerHTML = '<span>Queued &#10003;</span>';
+                            setTimeout(function () {
+                                btn.disabled = false;
+                                btn.innerHTML = '<span>Generate</span>';
+                            }, 3000);
                         }
-                        Dashboard.alert('Subtitles generated successfully for "' + itemName + '".');
-                        var libraryId = document.querySelector('#selectLibrary').value;
-                        if (libraryId) {
-                            JellySubtitlesConfig.loadLibraryItems(libraryId, JellySubtitlesConfig.currentStartIndex);
-                        }
+                        Dashboard.alert('Queued "' + itemName + '" for subtitle generation (priority).');
                     }).catch(function (error) {
                         if (btn) {
                             btn.disabled = false;
                             btn.innerHTML = '<span>Generate</span>';
                         }
-                        console.error('JellySubtitles: error generating subtitle', error);
-                        Dashboard.alert('Error generating subtitle. Check the server log for details.');
+                        console.error('JellySubtitles: error queuing subtitle', error);
+                        Dashboard.alert('Error queuing subtitle. Check the server log for details.');
                     });
                 }
             };
 
             document.querySelector('[data-role="page"]').addEventListener('pageshow', function () {
                 JellySubtitlesConfig.loadConfiguration(this);
-                // Also load libraries independently in case loadConfiguration fails
-                JellySubtitlesConfig.loadLibraries();
             });
 
             document.querySelector('.jellySubtitlesConfigurationForm').addEventListener('submit', function (e) {

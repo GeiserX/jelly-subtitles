@@ -1,0 +1,291 @@
+# AGENTS.md — JellySubtitles
+
+## Project Overview
+
+JellySubtitles is a Jellyfin plugin that generates subtitles for media libraries using local AI speech-to-text models. All processing happens on the server — no cloud APIs. The primary backend is [whisper.cpp](https://github.com/ggml-org/whisper.cpp) with Vulkan/CUDA GPU acceleration support.
+
+- **Repo:** [GeiserX/jelly-subtitles](https://github.com/GeiserX/jelly-subtitles)
+- **Plugin GUID:** `97124bd9-c8cd-4a53-a213-e593aa3fef52`
+- **Target:** Jellyfin 10.11+ / .NET 9.0
+- **License:** GPL-3.0
+
+## Architecture
+
+```
+Plugin.cs                          Entry point, IHasWebPages (embeds config UI)
+├── Configuration/
+│   └── PluginConfiguration.cs     User-editable settings (model path, binary path, language, etc.)
+├── Api/
+│   └── SubtitleController.cs      REST API endpoints under /Plugins/JellySubtitles/*
+├── Controller/
+│   ├── SubtitleManager.cs         Orchestrator: language detection → audio extraction → transcription → save
+│   └── SubtitleQueueService.cs    Thread-safe in-memory queue with single-worker drain loop
+├── Providers/
+│   ├── ISubtitleProvider.cs       Provider interface (TranscribeAsync)
+│   └── WhisperProvider.cs         whisper.cpp integration (finds binary, runs process, reads SRT output)
+├── ScheduledTasks/
+│   └── SubtitleGenerationTask.cs  Jellyfin scheduled task for auto-generation
+└── Web/
+    └── configPage.html            Admin UI (embedded resource) — vanilla JS, Jellyfin emby-* components
+```
+
+### Data Flow
+
+1. **Language detection** — `SubtitleManager.DetectAudioLanguagesAsync` calls FFprobe to read audio stream language tags. ISO 639-2/B codes are normalized to 639-1 (e.g., `spa` → `es`).
+2. **Audio extraction** — FFmpeg extracts 16kHz mono PCM WAV from the media file to a temp path.
+3. **Transcription** — `WhisperProvider.TranscribeAsync` invokes `whisper-cli` as a child process with the model and audio file. Output is an SRT file.
+4. **Save** — The SRT content is written alongside the media as `<filename>.<lang>.generated.srt`.
+5. **Metadata refresh** — `item.RefreshMetadata()` tells Jellyfin to pick up the new subtitle file.
+
+### Queue System
+
+Manual subtitle requests go through `SubtitleQueueService`:
+
+- **`Enqueue()`** — Fire-and-forget. The `POST /Items/{id}/Generate` endpoint returns HTTP 202 immediately.
+- **`EnsureDraining()`** — Starts a single background worker if one isn't already running. Uses `Interlocked.CompareExchange` for thread safety.
+- **Race condition protection** — After the drain loop exits, it re-checks the queue and restarts if new items arrived during the `finally` block.
+- **Skip existing** — The drain loop checks for `.generated.srt` files before processing, so re-queuing after a restart is safe (already-done items are skipped instantly).
+- **In-memory only** — The queue does NOT persist across Jellyfin restarts. The scheduled task compensates by scanning for items without subtitles on startup.
+
+### Scheduled Task
+
+`SubtitleGenerationTask` runs on startup and daily at 2 AM (configurable in Jellyfin UI). It:
+
+1. Queries all enabled libraries for `Movie` and `Episode` items without subtitles.
+2. Checks for existing `.generated.srt` files (restart resilience).
+3. Between each auto-generation item, drains any priority queue items (manual requests take precedence).
+
+## API Endpoints
+
+All require Jellyfin admin auth (`Authorization: MediaBrowser Token="<token>"`).
+
+| Method | Path | Returns | Notes |
+|--------|------|---------|-------|
+| `GET` | `/Plugins/JellySubtitles/Libraries` | `LibraryInfo[]` | All virtual folders |
+| `GET` | `/Plugins/JellySubtitles/Libraries/{id}/Items?startIndex=0&limit=50` | `PagedItemResult` | Movies/Episodes with subtitle status |
+| `POST` | `/Plugins/JellySubtitles/Items/{id}/Generate?language=auto` | 202 Accepted | Enqueues, returns immediately |
+| `GET` | `/Plugins/JellySubtitles/Items/{id}/Status?language=auto` | `SubtitleStatus` | Checks for `.generated.srt` on disk |
+| `GET` | `/Plugins/JellySubtitles/Items/{id}/AudioLanguages` | `string[]` | FFprobe-detected languages |
+| `GET` | `/Plugins/JellySubtitles/Queue` | `{isProcessing, currentItem, remaining, processed}` | Live queue status |
+| `GET` | `/Plugins/JellySubtitles/Models` | `ModelInfo[]` | `.bin` files in the model directory |
+| `POST` | `/Plugins/JellySubtitles/RunTask` | 200 | Triggers the scheduled task |
+
+## Build & Deploy
+
+### Build
+
+```bash
+dotnet build --configuration Release
+# Output: bin/Release/net9.0/JellySubtitles.dll
+```
+
+### Deploy (manual)
+
+Copy the DLL to the Jellyfin plugin directory and restart:
+
+```bash
+cp bin/Release/net9.0/JellySubtitles.dll \
+  /path/to/jellyfin/config/plugins/JellySubtitles_<version>/JellySubtitles.dll
+# Restart Jellyfin
+```
+
+### CI/CD
+
+The GitHub Actions workflow (`.github/workflows/build-release.yml`) triggers on push to `main`:
+
+1. Builds the DLL
+2. Packages it into a versioned ZIP
+3. Creates a GitHub Release
+4. Updates `manifest.json` with the checksum
+5. Deploys to GitHub Pages (serves the plugin repository manifest)
+
+Version is read from `<Version>` in `JellySubtitles.csproj`. Bump it there before pushing.
+
+## Config Page (Web UI)
+
+`Web/configPage.html` is embedded as a resource (`EmbeddedResourcePath` in `Plugin.cs`).
+
+### Key constraints
+
+- **Jellyfin custom elements** — Dropdowns with static options (Subtitle Provider, Default Language) use `is="emby-select"` for native Jellyfin styling. Dropdowns populated dynamically via JS (Detected Models, Library selector) also use `is="emby-select"` — the options are added after the `pageshow` event fires via API calls.
+- **`data-require`** — The page declares `data-require="emby-input,emby-button,emby-select,emby-checkbox"` to ensure Jellyfin loads these components before rendering.
+- **No framework** — Pure vanilla JS. The `JellySubtitlesConfig` object namespace holds all logic.
+- **Auth** — API calls use `ApiClient.accessToken()` via the `getAuthHeader()` helper.
+- **Config load/save** — Uses `ApiClient.getPluginConfiguration()` / `ApiClient.updatePluginConfiguration()` with the plugin GUID.
+
+### Debugging the UI
+
+Open the browser console and look for lines prefixed with `JellySubtitles:`. All `ajaxGet` calls log the URL, response status, and parsed data.
+
+## whisper.cpp Integration
+
+### Binary discovery
+
+`WhisperProvider.FindWhisperExecutable()` tries candidates in order:
+
+1. The configured `WhisperBinaryPath` (if set)
+2. `whisper-cli` (PATH)
+3. `main` (PATH)
+4. `whisper` (PATH)
+
+Each candidate is tested with `--help`. The first one that exits with code 0 or 1 is used.
+
+### Build requirements for Docker
+
+The whisper-cli binary must be built for the same environment as the Jellyfin container (Debian Trixie / glibc). Building on the host and mounting won't work if glibc versions differ.
+
+**Build inside the running container or a matching Docker image.**
+
+```bash
+# Inside the Jellyfin container (or debian:trixie):
+apt-get install -y git cmake g++ make libvulkan-dev glslc
+git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper
+cd /tmp/whisper
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=ON
+cmake --build build --config Release -j$(nproc)
+# Binary: build/bin/whisper-cli
+```
+
+Key flags:
+- **`-DBUILD_SHARED_LIBS=OFF`** — Static link whisper/ggml libraries into the binary. Without this, you get `libwhisper.so.1: cannot open shared object file` at runtime.
+- **`-DGGML_VULKAN=ON`** — Intel/AMD GPU acceleration via Vulkan. Requires `libvulkan-dev` and `glslc` at build time, `libvulkan1` and `mesa-vulkan-drivers` at runtime.
+- **`-DGGML_CUDA=ON`** — NVIDIA GPU acceleration. Requires CUDA toolkit.
+
+### Persistent storage
+
+The whisper binary and models MUST be on persistent storage that survives reboots. Do NOT use tmpfs paths like `/opt` on diskless systems (e.g., Unraid where `/opt` is on the root RAM disk).
+
+Store in an appdata directory and bind-mount into the container:
+
+```yaml
+volumes:
+  - /path/to/persistent/whisper:/opt/whisper:ro
+```
+
+### GPU passthrough (Docker)
+
+```yaml
+devices:
+  - /dev/dri   # Intel/AMD GPU render nodes
+environment:
+  - VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/intel_icd.json  # Required for Vulkan in containers
+```
+
+The `VK_ICD_FILENAMES` env var is critical — without it, the Vulkan loader may fail to find the Intel ICD inside the container even with `mesa-vulkan-drivers` installed. Set it to:
+- **Intel:** `/usr/share/vulkan/icd.d/intel_icd.json`
+- **AMD:** `/usr/share/vulkan/icd.d/radeon_icd.json`
+
+Plus install Vulkan runtime in the container entrypoint:
+
+```bash
+apt-get install -y libvulkan1 mesa-vulkan-drivers libgomp1
+```
+
+Verify GPU detection:
+
+```bash
+docker exec jellyfin /opt/whisper/whisper-cli \
+  -m /opt/whisper/models/ggml-base.bin -f /dev/null 2>&1 | grep -i vulkan
+# Should show: "ggml_vulkan: Found N Vulkan devices"
+# And: "whisper_backend_init_gpu: using Vulkan0 backend"
+# If it says "no GPU found", check VK_ICD_FILENAMES
+```
+
+## Subtitle File Naming
+
+Output files follow the pattern:
+
+```
+<media_filename>.<lang>.generated.srt
+```
+
+Examples:
+- `Movie.es.generated.srt`
+- `Show S01E01.en.generated.srt`
+
+The `.generated.srt` suffix distinguishes AI-generated subtitles from manually added ones. Jellyfin auto-discovers these files when placed alongside the media.
+
+## Common Issues
+
+### "Whisper model not found"
+The model path in the plugin config doesn't match the actual file location inside the container. Check the bind-mount and verify the path exists inside the container:
+```bash
+docker exec jellyfin ls -lh /opt/whisper/models/
+```
+
+### "Whisper executable not found"
+The binary isn't in PATH and the configured path is wrong or the binary crashes on `--help`. Test it manually:
+```bash
+docker exec jellyfin /opt/whisper/whisper-cli --help
+```
+
+### "libwhisper.so.1: cannot open shared object file"
+The binary was built with shared libraries. Rebuild with `-DBUILD_SHARED_LIBS=OFF`.
+
+### "no GPU found" despite Vulkan binary
+Set `VK_ICD_FILENAMES` environment variable in the container. See [GPU passthrough](#gpu-passthrough-docker) above.
+
+### Queue stops processing after restart
+The queue is in-memory. After a Jellyfin restart, re-queue items via the API or wait for the scheduled task to pick them up automatically (it scans for items without subtitles).
+
+### High CPU during transcription
+If not using GPU acceleration, whisper.cpp uses all available CPU cores. Consider:
+- Building with Vulkan/CUDA support to offload to GPU
+- Using a smaller model (`ggml-base.bin` or `ggml-large-v3-turbo.bin`)
+- Scheduling transcription during off-peak hours via the scheduled task settings
+
+### emby-select dropdowns empty
+If dynamically populated dropdowns appear empty, check the browser console for `JellySubtitles:` log lines. The API calls may be failing due to auth issues. Hard-refresh the page (Ctrl+Shift+R).
+
+## Partial SRT & Resume on Restart
+
+If transcription is cancelled or Jellyfin restarts mid-processing:
+
+1. **WhisperProvider** kills the whisper process and returns whatever partial SRT content was written to disk.
+2. **SubtitleManager** saves the partial SRT as `<filename>.<lang>.generated.srt`.
+3. On the next run, `SubtitleManager.GenerateSubtitleAsync()` detects the existing file, parses the last timestamp via `WhisperProvider.ParseLastSrtTimestamp()`, and compares it against the media duration (via FFprobe).
+4. If the SRT is within 30 seconds of the media end, it's considered **complete** and skipped.
+5. If partial, FFmpeg extracts audio starting from the resume offset (`-ss`), whisper transcribes the remainder, and the new SRT entries are offset-adjusted and appended to the existing file.
+
+Key helpers in `WhisperProvider`:
+- `ParseLastSrtTimestamp(srtContent)` — returns last end timestamp in seconds
+- `OffsetSrt(srtContent, offsetSeconds, startIndex)` — shifts all timestamps and renumbers entries
+- `CountSrtEntries(srtContent)` — counts `-->` lines
+
+## Deployment
+
+### Manual deployment to a running Jellyfin container
+
+```bash
+dotnet build --configuration Release
+scp bin/Release/net9.0/JellySubtitles.dll \
+  <host>:/path/to/jellyfin/config/plugins/JellySubtitles_<version>/JellySubtitles.dll
+# Restart Jellyfin to load the new DLL
+```
+
+The host path for `/config` depends on the Docker volume mapping. Find it with:
+```bash
+docker inspect jellyfin --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{println}}{{end}}'
+```
+
+### Gotchas
+
+- **Unraid tmpfs**: Do NOT store whisper binaries or models in `/opt` on Unraid — it's a RAM disk that wipes on reboot. Use `/mnt/user/appdata/whisper` and bind-mount into the container.
+- **Static linking is mandatory**: Always build whisper.cpp with `-DBUILD_SHARED_LIBS=OFF`. Dynamic builds fail with `libwhisper.so.1: cannot open shared object file` inside the Jellyfin container.
+- **Orphaned docker-proxy**: If Jellyfin crashes, the docker-proxy process may hold port 8096. On Unraid, run `rc.docker restart` to clean up. On other systems, restart the Docker daemon.
+- **Memory limits**: Transcription (especially with large models) can consume 5-10 GB RAM. Set `mem_limit` in docker-compose to prevent OOM kills affecting other services.
+- **Queue is in-memory**: The `SubtitleQueueService` queue does not persist across Jellyfin restarts. The scheduled task compensates by scanning for items missing subtitles on startup, and partial SRTs are automatically resumed.
+
+## Development Notes
+
+- The `.csproj` targets `net9.0` and references `Jellyfin.Model` and `Jellyfin.Controller` 10.11.0.
+- The config page HTML is an embedded resource — changes require rebuilding the DLL.
+- `Plugin.Instance` is a static singleton set in the constructor. All components access config via `Plugin.Instance.Configuration`.
+- The `ISubtitleProvider` interface is designed for extensibility (Parakeet, custom commands), but only `WhisperProvider` is currently implemented.
+- Language normalization covers 30 ISO 639-2 → 639-1 mappings. Add new ones to `SubtitleManager.NormalizeLanguageCode()`.
+- The Generate endpoint returns HTTP 202 immediately — transcription runs in a background queue. Manual requests get priority over scheduled-task items.
+- The config page UI uses Jellyfin's `emby-*` custom elements. Dynamic dropdowns (models, libraries) must use `is="emby-select"` **and** populate options only after the `pageshow` event fires. Do not call `loadLibraries()` twice — it causes a race condition that wipes the dropdown.
+
+---
+
+*Generated by [LynxPrompt](https://lynxprompt.com) CLI*
