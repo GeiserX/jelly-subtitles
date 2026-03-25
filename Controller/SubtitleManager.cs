@@ -86,15 +86,7 @@ namespace JellySubtitles.Controller
                     await ExtractAudioAsync(mediaPath, tempAudioPath, cancellationToken, resumeOffsetSeconds);
                     string srtContent;
 
-                    try
-                    {
-                        srtContent = await provider.TranscribeAsync(tempAudioPath, lang, cancellationToken);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // TranscribeAsync returns partial content on cancellation before re-throwing
-                        throw;
-                    }
+                    srtContent = await provider.TranscribeAsync(tempAudioPath, lang, cancellationToken);
 
                     // If resuming, offset new timestamps and merge with existing content
                     if (resumeOffsetSeconds > 0 && !string.IsNullOrWhiteSpace(existingSrt))
@@ -108,14 +100,13 @@ namespace JellySubtitles.Controller
                 }
                 catch (OperationCanceledException)
                 {
-                    // Save partial work on cancellation so we can resume later
-                    _logger.LogInformation("Cancelled — checking for partial SRT to save for {ItemName}", item.Name);
+                    _logger.LogInformation("Cancelled subtitle generation for {ItemName} [{Language}]", item.Name, lang);
                     throw;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error generating subtitle for {ItemName} [{Language}]", item.Name, lang);
-                    throw;
+                    // Log but continue to the next language — don't abort the entire item
+                    _logger.LogError(ex, "Error generating subtitle for {ItemName} [{Language}], continuing with next language", item.Name, lang);
                 }
                 finally
                 {
