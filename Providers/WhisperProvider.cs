@@ -50,7 +50,7 @@ namespace JellySubtitles.Providers
                         "Whisper executable not found. Please install whisper.cpp and ensure 'whisper-cli' or 'main' is in PATH.");
                 }
 
-                var arguments = $"-m \"{_modelPath}\" -f \"{audioPath}\" -l {language} -osrt -of \"{tempOutputPrefix}\"";
+                var arguments = $"-m \"{_modelPath}\" -f \"{audioPath}\" -l {language} --entropy-thold 2.4 --logprob-thold -1.0 --no-context -osrt -of \"{tempOutputPrefix}\"";
 
                 _logger.LogInformation("Running: {Executable} {Arguments}", whisperExecutable, arguments);
 
