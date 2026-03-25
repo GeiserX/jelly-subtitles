@@ -275,7 +275,22 @@ docker inspect jellyfin --format '{{range .Mounts}}{{.Source}} -> {{.Destination
 - **Static linking is mandatory**: Always build whisper.cpp with `-DBUILD_SHARED_LIBS=OFF`. Dynamic builds fail with `libwhisper.so.1: cannot open shared object file` inside the Jellyfin container.
 - **Orphaned docker-proxy**: If Jellyfin crashes, the docker-proxy process may hold port 8096. On Unraid, run `rc.docker restart` to clean up. On other systems, restart the Docker daemon.
 - **Memory limits**: Transcription (especially with large models) can consume 5-10 GB RAM. Set `mem_limit` in docker-compose to prevent OOM kills affecting other services.
-- **Queue is in-memory**: The `SubtitleQueueService` queue does not persist across Jellyfin restarts. The scheduled task compensates by scanning for items missing subtitles on startup, and partial SRTs are automatically resumed.
+- **Plugin directory moves on version change**: Jellyfin may rename the plugin folder (e.g. `JellySubtitles_1.0.4.2` → `JellySubtitles`). Always check the actual path with `docker exec jellyfin find /config/plugins -name "JellySubtitles*" -type d` before deploying.
+
+## Queue Persistence & Concurrency
+
+- **Queue persists to disk** as `queue.json` in the plugin data folder (`/config/plugins/JellySubtitles/queue.json`). Updated on every enqueue/dequeue. On startup, `RestoreQueue()` reloads all entries and drains them before the library scan begins.
+- **Global `TranscriptionLock`** (`SemaphoreSlim(1,1)`) prevents concurrent whisper processes. Both the drain loop and the scheduled task must acquire it. Without this, two whisper processes run simultaneously and can OOM the container (11.4 GB / 12 GB observed).
+- **Per-language error isolation**: If whisper fails on one language (e.g. `en`), the error is caught and logged but does not abort remaining languages (e.g. `es` SRT is still saved). Only `OperationCanceledException` propagates up.
+- **whisper.cpp writes SRT only at completion** — not incrementally. Mid-process kills produce no partial file. The resume feature only helps when whisper finishes writing a file that covers part of the media (rare edge case).
+- **Killed items are not auto-retried** — they fall out of the queue. The scheduled task's library scan will eventually re-process them. Manually re-queue if urgent.
+
+## Language Detection
+
+- FFprobe extracts `language` tags from audio streams. Most HDO/WEB-DL files have proper `spa`/`eng` tags.
+- Normalization: 30+ ISO 639-2 → 639-1 mappings in `SubtitleManager.NormalizeLanguageCode()`.
+- Dedup: if a file has 4 audio streams (`spa, spa, eng, eng` — e.g. DD+ and DD variants), only `es` and `en` are generated.
+- Fallback: files with no language tags (older rips, some PlutoTV content) get whisper auto-detection — one SRT with language `auto`.
 
 ## Development Notes
 
