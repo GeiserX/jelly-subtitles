@@ -50,7 +50,9 @@ namespace WhisperSubs.Providers
                         "Whisper executable not found. Please install whisper.cpp and ensure 'whisper-cli' or 'main' is in PATH.");
                 }
 
-                var arguments = $"-m \"{_modelPath}\" -f \"{audioPath}\" -l {language} -mc 0 -osrt -of \"{tempOutputPrefix}\"";
+                var langPrompt = GetLanguagePrompt(language);
+                var promptArg = string.IsNullOrEmpty(langPrompt) ? "" : $" --prompt \"{langPrompt}\"";
+                var arguments = $"-m \"{_modelPath}\" -f \"{audioPath}\" -l {language} -mc 0 -osrt -of \"{tempOutputPrefix}\"{promptArg}";
 
                 _logger.LogInformation("Running: {Executable} {Arguments}", whisperExecutable, arguments);
 
@@ -142,6 +144,24 @@ namespace WhisperSubs.Providers
                     catch { }
                 }
             }
+        }
+
+        private static string GetLanguagePrompt(string language)
+        {
+            return language switch
+            {
+                "en" => "This is a transcription in English.",
+                "es" => "Esta es una transcripción en español.",
+                "fr" => "Ceci est une transcription en français.",
+                "de" => "Dies ist eine Transkription auf Deutsch.",
+                "it" => "Questa è una trascrizione in italiano.",
+                "pt" => "Esta é uma transcrição em português.",
+                "ja" => "これは日本語の書き起こしです。",
+                "zh" => "这是中文转录。",
+                "ko" => "이것은 한국어 전사입니다.",
+                "ru" => "Это транскрипция на русском языке.",
+                _ => ""
+            };
         }
 
         /// <summary>
