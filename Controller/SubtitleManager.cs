@@ -83,7 +83,7 @@ namespace WhisperSubs.Controller
 
                 try
                 {
-                    await ExtractAudioAsync(mediaPath, tempAudioPath, cancellationToken, resumeOffsetSeconds);
+                    await ExtractAudioAsync(mediaPath, tempAudioPath, lang, cancellationToken, resumeOffsetSeconds);
                     string srtContent;
 
                     srtContent = await provider.TranscribeAsync(tempAudioPath, lang, cancellationToken);
@@ -218,7 +218,62 @@ namespace WhisperSubs.Controller
             return languages;
         }
 
-        private async Task ExtractAudioAsync(string videoPath, string outputAudioPath, CancellationToken cancellationToken, double startOffsetSeconds = 0)
+        private async Task<int> FindAudioStreamIndexAsync(string mediaPath, string language, CancellationToken cancellationToken)
+        {
+            var ffprobePath = FindFfprobeExecutable();
+            if (ffprobePath == null) return -1;
+
+            var arguments = $"-v quiet -print_format json -show_streams -select_streams a \"{mediaPath}\"";
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = ffprobePath,
+                    Arguments = arguments,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            var outputBuilder = new StringBuilder();
+            process.OutputDataReceived += (_, e) => { if (e.Data != null) outputBuilder.AppendLine(e.Data); };
+
+            process.Start();
+            process.BeginOutputReadLine();
+            await process.WaitForExitAsync(cancellationToken);
+
+            if (process.ExitCode != 0) return -1;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(outputBuilder.ToString());
+                if (doc.RootElement.TryGetProperty("streams", out var streams))
+                {
+                    int audioIndex = 0;
+                    foreach (var stream in streams.EnumerateArray())
+                    {
+                        if (stream.TryGetProperty("tags", out var tags) &&
+                            tags.TryGetProperty("language", out var langProp))
+                        {
+                            var lang = langProp.GetString();
+                            if (!string.IsNullOrEmpty(lang) &&
+                                string.Equals(NormalizeLanguageCode(lang), language, StringComparison.OrdinalIgnoreCase))
+                            {
+                                return audioIndex;
+                            }
+                        }
+                        audioIndex++;
+                    }
+                }
+            }
+            catch (JsonException) { }
+
+            return -1;
+        }
+
+        private async Task ExtractAudioAsync(string videoPath, string outputAudioPath, string? targetLanguage, CancellationToken cancellationToken, double startOffsetSeconds = 0)
         {
             var ffmpegPath = FindFfmpegExecutable();
             if (ffmpegPath == null)
@@ -228,7 +283,17 @@ namespace WhisperSubs.Controller
             }
 
             var ssArg = startOffsetSeconds > 0 ? $"-ss {startOffsetSeconds:F1} " : "";
-            var arguments = $"{ssArg}-i \"{videoPath}\" -vn -acodec pcm_s16le -ac 1 -ar 16000 -y \"{outputAudioPath}\"";
+            var mapArg = "";
+            if (!string.IsNullOrEmpty(targetLanguage) && !string.Equals(targetLanguage, "auto", StringComparison.OrdinalIgnoreCase))
+            {
+                var streamIndex = await FindAudioStreamIndexAsync(videoPath, targetLanguage, cancellationToken);
+                if (streamIndex >= 0)
+                {
+                    mapArg = $"-map 0:a:{streamIndex} ";
+                    _logger.LogInformation("Selected audio stream {Index} for language {Language}", streamIndex, targetLanguage);
+                }
+            }
+            var arguments = $"{ssArg}-i \"{videoPath}\" {mapArg}-vn -acodec pcm_s16le -ac 1 -ar 16000 -y \"{outputAudioPath}\"";
             _logger.LogInformation("Running FFmpeg: {Path} {Arguments}", ffmpegPath, arguments);
 
             var process = new Process

@@ -51,23 +51,38 @@ namespace WhisperSubs.Providers
                 }
 
                 var langPrompt = GetLanguagePrompt(language);
-                var promptArg = string.IsNullOrEmpty(langPrompt) ? "" : $" --prompt \"{langPrompt}\"";
-                var arguments = $"-m \"{_modelPath}\" -f \"{audioPath}\" -l {language} -mc 0 -osrt -of \"{tempOutputPrefix}\"{promptArg}";
 
-                _logger.LogInformation("Running: {Executable} {Arguments}", whisperExecutable, arguments);
-
-                var process = new Process
+                var startInfo = new ProcessStartInfo
                 {
-                    StartInfo = new ProcessStartInfo
-                    {
-                        FileName = whisperExecutable,
-                        Arguments = arguments,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    }
+                    FileName = whisperExecutable,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
                 };
+
+                startInfo.ArgumentList.Add("-m");
+                startInfo.ArgumentList.Add(_modelPath);
+                startInfo.ArgumentList.Add("-f");
+                startInfo.ArgumentList.Add(audioPath);
+                startInfo.ArgumentList.Add("-l");
+                startInfo.ArgumentList.Add(language);
+                startInfo.ArgumentList.Add("-mc");
+                startInfo.ArgumentList.Add("0");
+                startInfo.ArgumentList.Add("-sns");
+                startInfo.ArgumentList.Add("-osrt");
+                startInfo.ArgumentList.Add("-of");
+                startInfo.ArgumentList.Add(tempOutputPrefix);
+                if (!string.IsNullOrEmpty(langPrompt))
+                {
+                    startInfo.ArgumentList.Add("--prompt");
+                    startInfo.ArgumentList.Add(langPrompt);
+                }
+
+                _logger.LogInformation("Running: {Executable} {Arguments}", whisperExecutable,
+                    string.Join(" ", startInfo.ArgumentList));
+
+                var process = new Process { StartInfo = startInfo };
 
                 var errorBuilder = new StringBuilder();
 
