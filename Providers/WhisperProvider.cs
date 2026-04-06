@@ -212,6 +212,13 @@ namespace WhisperSubs.Providers
             }
             startInfo.ArgumentList.Add("--detect-language");
 
+            // Disable GPU for language detection. Each DetectLanguageAsync call spawns a
+            // fresh process that must load the model + compile GPU shaders from scratch.
+            // For short chunks (~30s) the GPU init overhead exceeds the detection work
+            // itself (~21s/chunk with GPU vs ~15s/chunk CPU-only). Transcription still
+            // uses GPU where available.
+            startInfo.ArgumentList.Add("--no-gpu");
+
             _logger.LogDebug("Running: {Executable} {Arguments}", whisperExecutable,
                 string.Join(" ", startInfo.ArgumentList));
 

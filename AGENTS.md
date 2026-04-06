@@ -241,10 +241,7 @@ Per-segment breakdown (16 threads):
 
 **GPU offloading is critical** — the encode step dominates and is highly parallelizable on GPU. With Vulkan on Intel UHD 770, expect 2-4x overall speedup for full transcription.
 
-**Known GPU regression for language detection**: The `DetectLanguageAsync` path spawns a new whisper process per chunk, each loading the 3GB model + compiling Vulkan shaders. This per-invocation overhead makes GPU *slower* than CPU for short operations (~21s/chunk vs ~15s/chunk). Options to address:
-- Separate `WhisperBinaryPath` for detection (CPU) vs transcription (GPU)
-- A `--no-gpu` flag for detection calls
-- A persistent `whisper-server` process that stays loaded
+**GPU disabled for language detection (by design)**: `DetectLanguageAsync` passes `--no-gpu` because each call spawns a fresh whisper process per chunk, and GPU init overhead (model load + shader compilation) exceeds the detection work itself (~21s/chunk with GPU vs ~15s/chunk CPU-only). Transcription still uses GPU where available. The deeper issue — per-chunk process spawning — remains; long-term fix is a persistent whisper-server process that stays loaded (see GitHub issue).
 
 ### Known quality issues
 
