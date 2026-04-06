@@ -264,7 +264,7 @@ namespace WhisperSubs.Api
                     return Ok(new SubtitleStatus
                     {
                         ItemId = itemId,
-                        HasGeneratedSubtitle = found.Count > 0,
+                        HasGeneratedSubtitle = fullFiles.Count > 0,
                         HasForcedSubtitle = forcedFiles.Count > 0,
                         SubtitlePath = found.Count > 0 ? string.Join("; ", found) : null
                     });

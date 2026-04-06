@@ -149,13 +149,35 @@ namespace WhisperSubs.Controller
                 if (detected.Count > 0)
                 {
                     resolvedPrimary = detected[0];
-                    _logger.LogInformation("Resolved primary language for forced subs: {Language}", resolvedPrimary);
+                    _logger.LogInformation("Resolved primary language for forced subs via ffprobe: {Language}", resolvedPrimary);
                 }
                 else
                 {
-                    _logger.LogWarning("Cannot determine primary language for forced subtitles of {ItemName} — " +
-                        "tag your audio streams or set a specific language in config", item.Name);
-                    return;
+                    // Fallback: extract first 30s of audio and let whisper detect the language
+                    _logger.LogInformation("No audio language tags for {ItemName}, using whisper to detect primary language", item.Name);
+                    var probeDir = Path.Combine(Path.GetTempPath(), $"whispersubs_probe_{Guid.NewGuid():N}");
+                    Directory.CreateDirectory(probeDir);
+                    try
+                    {
+                        var probeAudio = Path.Combine(probeDir, "probe.wav");
+                        await ExtractAudioAsync(mediaPath, probeAudio, null, cancellationToken);
+                        // Take only the first 30s for detection
+                        var probeChunk = Path.Combine(probeDir, "probe_chunk.wav");
+                        await ExtractAudioChunkAsync(probeAudio, probeChunk, 0, 30.0, cancellationToken);
+                        var (detectedLang, _) = await provider.DetectLanguageAsync(probeChunk, cancellationToken);
+                        resolvedPrimary = detectedLang;
+                        _logger.LogInformation("Resolved primary language for forced subs via whisper: {Language}", resolvedPrimary);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Cannot determine primary language for forced subtitles of {ItemName} — " +
+                            "tag your audio streams or set a specific language in config", item.Name);
+                        return;
+                    }
+                    finally
+                    {
+                        try { if (Directory.Exists(probeDir)) Directory.Delete(probeDir, true); } catch { }
+                    }
                 }
             }
 
@@ -246,7 +268,9 @@ namespace WhisperSubs.Controller
 
                 if (foreignChunks.Count == 0)
                 {
-                    _logger.LogInformation("No foreign language segments found in {ItemName}", item.Name);
+                    // Write empty marker so the scheduled task won't reprocess this item
+                    await File.WriteAllTextAsync(forcedSrtPath, "", CancellationToken.None);
+                    _logger.LogInformation("No foreign language segments found in {ItemName}, wrote empty marker", item.Name);
                     return;
                 }
 
