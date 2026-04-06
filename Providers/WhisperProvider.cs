@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -159,6 +160,142 @@ namespace WhisperSubs.Providers
                     catch { }
                 }
             }
+        }
+
+        public async Task<(string Language, float Probability)> DetectLanguageAsync(string audioPath, CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("Detecting language for {AudioPath}", audioPath);
+
+            if (string.IsNullOrEmpty(_modelPath) || !File.Exists(_modelPath))
+            {
+                throw new FileNotFoundException($"Whisper model not found at: {_modelPath}");
+            }
+
+            if (!File.Exists(audioPath))
+            {
+                throw new FileNotFoundException($"Audio file not found: {audioPath}");
+            }
+
+            var whisperExecutable = FindWhisperExecutable();
+            if (whisperExecutable == null)
+            {
+                throw new InvalidOperationException(
+                    "Whisper executable not found. Please install whisper.cpp and ensure 'whisper-cli' or 'main' is in PATH.");
+            }
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = whisperExecutable,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            startInfo.ArgumentList.Add("-m");
+            startInfo.ArgumentList.Add(_modelPath);
+            startInfo.ArgumentList.Add("-f");
+            startInfo.ArgumentList.Add(audioPath);
+            startInfo.ArgumentList.Add("-l");
+            startInfo.ArgumentList.Add("auto");
+            startInfo.ArgumentList.Add("--detect-language");
+
+            _logger.LogDebug("Running: {Executable} {Arguments}", whisperExecutable,
+                string.Join(" ", startInfo.ArgumentList));
+
+            var process = new Process { StartInfo = startInfo };
+            var outputBuilder = new StringBuilder();
+            var errorBuilder = new StringBuilder();
+
+            process.OutputDataReceived += (_, e) => { if (e.Data != null) outputBuilder.AppendLine(e.Data); };
+            process.ErrorDataReceived += (_, e) => { if (e.Data != null) errorBuilder.AppendLine(e.Data); };
+
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw;
+            }
+
+            var allOutput = outputBuilder.ToString() + "\n" + errorBuilder.ToString();
+
+            // Parse language from whisper output. Handles multiple formats:
+            // "Detected language: en" (--detect-language mode)
+            // "whisper_full_with_state: auto-detected language: en (p = 0.978)"
+            var match = Regex.Match(allOutput,
+                @"(?:auto-)?[Dd]etected language:\s*(\w+)(?:\s*\(p\s*=\s*([\d.]+)\))?");
+            if (match.Success)
+            {
+                var lang = NormalizeLangName(match.Groups[1].Value);
+                var prob = match.Groups[2].Success
+                    ? float.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture)
+                    : 0.5f;
+                _logger.LogInformation("Detected language: {Language} (p={Probability:F3})", lang, prob);
+                return (lang, prob);
+            }
+
+            // Fallback: some builds print probability table to stdout, e.g. "en    0.9780"
+            var probMatch = Regex.Match(allOutput, @"^\s*([a-z]{2})\s+([\d.]+)\s*$", RegexOptions.Multiline);
+            if (probMatch.Success)
+            {
+                var lang = probMatch.Groups[1].Value;
+                var prob = float.Parse(probMatch.Groups[2].Value, CultureInfo.InvariantCulture);
+                _logger.LogInformation("Detected language (fallback parse): {Language} (p={Probability:F3})", lang, prob);
+                return (lang, prob);
+            }
+
+            _logger.LogWarning("Could not parse language from whisper output:\n{Output}", allOutput);
+            throw new InvalidOperationException(
+                "Could not detect language. Ensure your whisper.cpp build supports --detect-language (v1.5.0+).");
+        }
+
+        /// <summary>
+        /// Normalizes whisper language names (e.g. "english" → "en") to ISO 639-1 codes.
+        /// </summary>
+        private static string NormalizeLangName(string lang)
+        {
+            return lang.ToLowerInvariant() switch
+            {
+                "english" => "en",
+                "spanish" => "es",
+                "french" => "fr",
+                "german" => "de",
+                "italian" => "it",
+                "portuguese" => "pt",
+                "russian" => "ru",
+                "japanese" => "ja",
+                "chinese" => "zh",
+                "korean" => "ko",
+                "arabic" => "ar",
+                "hindi" => "hi",
+                "dutch" => "nl",
+                "polish" => "pl",
+                "turkish" => "tr",
+                "swedish" => "sv",
+                "danish" => "da",
+                "finnish" => "fi",
+                "norwegian" => "no",
+                "czech" => "cs",
+                "romanian" => "ro",
+                "hungarian" => "hu",
+                "greek" => "el",
+                "hebrew" => "he",
+                "thai" => "th",
+                "ukrainian" => "uk",
+                "vietnamese" => "vi",
+                "indonesian" => "id",
+                "catalan" => "ca",
+                "basque" => "eu",
+                "galician" => "gl",
+                _ => lang.Length <= 3 ? lang.ToLowerInvariant() : lang.ToLowerInvariant()[..2]
+            };
         }
 
         private static string GetLanguagePrompt(string language)

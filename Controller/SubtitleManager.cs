@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using WhisperSubs.Configuration;
@@ -37,89 +38,514 @@ namespace WhisperSubs.Controller
                 return;
             }
 
-            // Resolve "auto" to the actual audio language(s)
             var languages = await ResolveLanguagesAsync(mediaPath, language, cancellationToken);
+            var subtitleMode = Plugin.Instance?.Configuration?.SubtitleMode ?? SubtitleMode.Full;
 
             foreach (var lang in languages)
             {
-                var srtPath = Path.ChangeExtension(mediaPath, $".{lang}.generated.srt");
-                string existingSrt = "";
-                double resumeOffsetSeconds = 0;
-                int existingEntryCount = 0;
-
-                // Check for existing partial SRT to resume from
-                if (File.Exists(srtPath))
+                if (subtitleMode == SubtitleMode.Full || subtitleMode == SubtitleMode.FullAndForced)
                 {
-                    existingSrt = await File.ReadAllTextAsync(srtPath, cancellationToken);
-                    var lastTimestamp = WhisperProvider.ParseLastSrtTimestamp(existingSrt);
-                    var mediaDuration = await GetMediaDurationAsync(mediaPath, cancellationToken);
-
-                    // Consider complete if within 30 seconds of the end (or if we can't determine duration)
-                    if (mediaDuration > 0 && lastTimestamp >= mediaDuration - 30)
-                    {
-                        _logger.LogInformation("Subtitle already complete for {ItemName} [{Language}] ({Last:F0}s / {Duration:F0}s), skipping",
-                            item.Name, lang, lastTimestamp, mediaDuration);
-                        continue;
-                    }
-
-                    if (lastTimestamp > 0)
-                    {
-                        // Partial SRT exists — resume from where it left off (with 2s overlap for safety)
-                        resumeOffsetSeconds = Math.Max(0, lastTimestamp - 2);
-                        existingEntryCount = WhisperProvider.CountSrtEntries(existingSrt);
-                        _logger.LogInformation("Resuming subtitle for {ItemName} [{Language}] from {Offset:F1}s ({Entries} existing entries)",
-                            item.Name, lang, resumeOffsetSeconds, existingEntryCount);
-                    }
-                    else if (mediaDuration <= 0)
-                    {
-                        // Can't determine duration and no timestamps — treat as complete
-                        _logger.LogInformation("Subtitle exists for {ItemName} [{Language}] (can't verify completeness), skipping", item.Name, lang);
-                        continue;
-                    }
+                    await GenerateFullSubtitleForLanguageAsync(item, provider, lang, mediaPath, cancellationToken);
                 }
 
-                var tempAudioPath = Path.Combine(Path.GetTempPath(), $"{item.Id}_{Guid.NewGuid()}.wav");
-                _logger.LogInformation("Generating subtitle for {ItemName} [{Language}]", item.Name, lang);
-
-                try
+                if (subtitleMode == SubtitleMode.ForcedOnly || subtitleMode == SubtitleMode.FullAndForced)
                 {
-                    await ExtractAudioAsync(mediaPath, tempAudioPath, lang, cancellationToken, resumeOffsetSeconds);
-                    string srtContent;
-
-                    srtContent = await provider.TranscribeAsync(tempAudioPath, lang, cancellationToken);
-
-                    // If resuming, offset new timestamps and merge with existing content
-                    if (resumeOffsetSeconds > 0 && !string.IsNullOrWhiteSpace(existingSrt))
-                    {
-                        var offsetContent = WhisperProvider.OffsetSrt(srtContent, resumeOffsetSeconds, existingEntryCount + 1);
-                        srtContent = existingSrt.TrimEnd() + "\n\n" + offsetContent;
-                    }
-
-                    await File.WriteAllTextAsync(srtPath, srtContent, CancellationToken.None);
-                    _logger.LogInformation("Saved subtitle to {SrtPath}", srtPath);
-                }
-                catch (OperationCanceledException)
-                {
-                    _logger.LogInformation("Cancelled subtitle generation for {ItemName} [{Language}]", item.Name, lang);
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    // Log but continue to the next language — don't abort the entire item
-                    _logger.LogError(ex, "Error generating subtitle for {ItemName} [{Language}], continuing with next language", item.Name, lang);
-                }
-                finally
-                {
-                    if (File.Exists(tempAudioPath))
-                    {
-                        try { File.Delete(tempAudioPath); }
-                        catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete temp audio: {Path}", tempAudioPath); }
-                    }
+                    await GenerateForcedSubtitleAsync(item, provider, lang, mediaPath, cancellationToken);
                 }
             }
 
             await item.RefreshMetadata(cancellationToken);
         }
+
+        /// <summary>
+        /// Generates a full (complete) subtitle file for a single language. Existing v2.5 behavior.
+        /// </summary>
+        private async Task GenerateFullSubtitleForLanguageAsync(
+            BaseItem item, ISubtitleProvider provider, string lang,
+            string mediaPath, CancellationToken cancellationToken)
+        {
+            var srtPath = Path.ChangeExtension(mediaPath, $".{lang}.generated.srt");
+            string existingSrt = "";
+            double resumeOffsetSeconds = 0;
+            int existingEntryCount = 0;
+
+            if (File.Exists(srtPath))
+            {
+                existingSrt = await File.ReadAllTextAsync(srtPath, cancellationToken);
+                var lastTimestamp = WhisperProvider.ParseLastSrtTimestamp(existingSrt);
+                var mediaDuration = await GetMediaDurationAsync(mediaPath, cancellationToken);
+
+                if (mediaDuration > 0 && lastTimestamp >= mediaDuration - 30)
+                {
+                    _logger.LogInformation("Subtitle already complete for {ItemName} [{Language}] ({Last:F0}s / {Duration:F0}s), skipping",
+                        item.Name, lang, lastTimestamp, mediaDuration);
+                    return;
+                }
+
+                if (lastTimestamp > 0)
+                {
+                    resumeOffsetSeconds = Math.Max(0, lastTimestamp - 2);
+                    existingEntryCount = WhisperProvider.CountSrtEntries(existingSrt);
+                    _logger.LogInformation("Resuming subtitle for {ItemName} [{Language}] from {Offset:F1}s ({Entries} existing entries)",
+                        item.Name, lang, resumeOffsetSeconds, existingEntryCount);
+                }
+                else if (await GetMediaDurationAsync(mediaPath, cancellationToken) <= 0)
+                {
+                    _logger.LogInformation("Subtitle exists for {ItemName} [{Language}] (can't verify completeness), skipping", item.Name, lang);
+                    return;
+                }
+            }
+
+            var tempAudioPath = Path.Combine(Path.GetTempPath(), $"{item.Id}_{Guid.NewGuid()}.wav");
+            _logger.LogInformation("Generating full subtitle for {ItemName} [{Language}]", item.Name, lang);
+
+            try
+            {
+                await ExtractAudioAsync(mediaPath, tempAudioPath, lang, cancellationToken, resumeOffsetSeconds);
+                string srtContent = await provider.TranscribeAsync(tempAudioPath, lang, cancellationToken);
+
+                if (resumeOffsetSeconds > 0 && !string.IsNullOrWhiteSpace(existingSrt))
+                {
+                    var offsetContent = WhisperProvider.OffsetSrt(srtContent, resumeOffsetSeconds, existingEntryCount + 1);
+                    srtContent = existingSrt.TrimEnd() + "\n\n" + offsetContent;
+                }
+
+                await File.WriteAllTextAsync(srtPath, srtContent, CancellationToken.None);
+                _logger.LogInformation("Saved full subtitle to {SrtPath}", srtPath);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Cancelled full subtitle generation for {ItemName} [{Language}]", item.Name, lang);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating full subtitle for {ItemName} [{Language}], continuing with next language", item.Name, lang);
+            }
+            finally
+            {
+                if (File.Exists(tempAudioPath))
+                {
+                    try { File.Delete(tempAudioPath); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete temp audio: {Path}", tempAudioPath); }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Generates a forced subtitle file containing only foreign-language segments.
+        /// Uses VAD-based chunking, per-chunk language detection, and selective transcription.
+        /// Output: Movie.{lang}.forced.generated.srt
+        /// </summary>
+        private async Task GenerateForcedSubtitleAsync(
+            BaseItem item, ISubtitleProvider provider, string primaryLanguage,
+            string mediaPath, CancellationToken cancellationToken)
+        {
+            // Resolve actual primary language if "auto"
+            string resolvedPrimary = primaryLanguage;
+            if (string.Equals(primaryLanguage, "auto", StringComparison.OrdinalIgnoreCase))
+            {
+                var detected = await DetectAudioLanguagesAsync(mediaPath, cancellationToken);
+                if (detected.Count > 0)
+                {
+                    resolvedPrimary = detected[0];
+                    _logger.LogInformation("Resolved primary language for forced subs: {Language}", resolvedPrimary);
+                }
+                else
+                {
+                    _logger.LogWarning("Cannot determine primary language for forced subtitles of {ItemName} — " +
+                        "tag your audio streams or set a specific language in config", item.Name);
+                    return;
+                }
+            }
+
+            var forcedSrtPath = Path.ChangeExtension(mediaPath, $".{resolvedPrimary}.forced.generated.srt");
+
+            // Skip if already exists and non-empty
+            if (File.Exists(forcedSrtPath))
+            {
+                var existing = await File.ReadAllTextAsync(forcedSrtPath, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(existing))
+                {
+                    _logger.LogInformation("Forced subtitle already exists for {ItemName} [{Language}], skipping",
+                        item.Name, resolvedPrimary);
+                    return;
+                }
+            }
+
+            var tempDir = Path.Combine(Path.GetTempPath(), $"whispersubs_{item.Id:N}_{Guid.NewGuid():N}");
+            Directory.CreateDirectory(tempDir);
+            var fullAudioPath = Path.Combine(tempDir, "full.wav");
+
+            try
+            {
+                _logger.LogInformation("Generating forced subtitle for {ItemName} [{Language}]", item.Name, resolvedPrimary);
+
+                // Step 1: Extract full audio
+                await ExtractAudioAsync(mediaPath, fullAudioPath, resolvedPrimary, cancellationToken);
+
+                // Step 2: Get duration
+                var totalDuration = await GetMediaDurationAsync(fullAudioPath, cancellationToken);
+                if (totalDuration <= 0)
+                {
+                    totalDuration = await GetMediaDurationAsync(mediaPath, cancellationToken);
+                }
+                if (totalDuration <= 0)
+                {
+                    _logger.LogWarning("Cannot determine duration for {ItemName}, aborting forced subtitle", item.Name);
+                    return;
+                }
+
+                // Step 3: VAD-based speech segmentation via silencedetect
+                var speechSegments = await DetectSpeechSegmentsAsync(fullAudioPath, totalDuration, cancellationToken);
+
+                if (speechSegments.Count == 0)
+                {
+                    _logger.LogInformation("No speech segments detected via VAD for {ItemName}, falling back to fixed chunks", item.Name);
+                    speechSegments = GenerateFixedChunks(totalDuration, 30.0);
+                }
+
+                // Step 4: Group speech into ~30s chunks
+                var chunks = GroupSpeechIntoChunks(speechSegments, 30.0);
+                _logger.LogInformation("Analyzing {Count} audio chunks for foreign language in {ItemName}", chunks.Count, item.Name);
+
+                // Step 5: Language detection per chunk
+                var foreignChunks = new List<(double Start, double End, string Language)>();
+
+                for (int i = 0; i < chunks.Count; i++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var chunk = chunks[i];
+                    var chunkDuration = chunk.End - chunk.Start;
+
+                    // Skip very short chunks (< 1s) — unreliable detection
+                    if (chunkDuration < 1.0) continue;
+
+                    var chunkPath = Path.Combine(tempDir, $"chunk_{i:D4}.wav");
+
+                    try
+                    {
+                        await ExtractAudioChunkAsync(fullAudioPath, chunkPath, chunk.Start, chunkDuration, cancellationToken);
+                        var (detectedLang, probability) = await provider.DetectLanguageAsync(chunkPath, cancellationToken);
+
+                        _logger.LogDebug("Chunk {Index}/{Total}: {Start:F1}s-{End:F1}s → {Language} (p={Prob:F3})",
+                            i + 1, chunks.Count, chunk.Start, chunk.End, detectedLang, probability);
+
+                        if (!string.Equals(detectedLang, resolvedPrimary, StringComparison.OrdinalIgnoreCase)
+                            && probability >= 0.3f)
+                        {
+                            foreignChunks.Add((chunk.Start, chunk.End, detectedLang));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Language detection failed for chunk {Index} ({Start:F1}s-{End:F1}s), skipping",
+                            i, chunk.Start, chunk.End);
+                    }
+                }
+
+                if (foreignChunks.Count == 0)
+                {
+                    _logger.LogInformation("No foreign language segments found in {ItemName}", item.Name);
+                    return;
+                }
+
+                _logger.LogInformation("Found {Count} foreign language chunk(s) in {ItemName}, transcribing",
+                    foreignChunks.Count, item.Name);
+
+                // Step 6: Merge adjacent foreign chunks with same language
+                var mergedSegments = MergeForeignChunks(foreignChunks);
+
+                // Step 7: Transcribe foreign segments
+                var forcedSrt = new StringBuilder();
+                int entryNum = 1;
+
+                foreach (var segment in mergedSegments)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var segDuration = segment.End - segment.Start;
+                    var segmentPath = Path.Combine(tempDir, $"foreign_{segment.Start:F0}_{segment.End:F0}.wav");
+
+                    try
+                    {
+                        await ExtractAudioChunkAsync(fullAudioPath, segmentPath, segment.Start, segDuration, cancellationToken);
+                        var srtContent = await provider.TranscribeAsync(segmentPath, segment.Language, cancellationToken);
+
+                        if (!string.IsNullOrWhiteSpace(srtContent))
+                        {
+                            var offsetContent = WhisperProvider.OffsetSrt(srtContent, segment.Start, entryNum);
+                            forcedSrt.Append(offsetContent);
+                            entryNum += WhisperProvider.CountSrtEntries(srtContent);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to transcribe foreign segment {Start:F1}s-{End:F1}s [{Language}]",
+                            segment.Start, segment.End, segment.Language);
+                    }
+                }
+
+                // Step 8: Save forced SRT
+                if (forcedSrt.Length > 0)
+                {
+                    await File.WriteAllTextAsync(forcedSrtPath, forcedSrt.ToString(), CancellationToken.None);
+                    _logger.LogInformation("Saved forced subtitle to {Path} ({Entries} entries)",
+                        forcedSrtPath, entryNum - 1);
+                }
+                else
+                {
+                    _logger.LogInformation("Foreign segments detected but no content transcribed for {ItemName}", item.Name);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Cancelled forced subtitle generation for {ItemName}", item.Name);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating forced subtitle for {ItemName}", item.Name);
+            }
+            finally
+            {
+                try
+                {
+                    if (Directory.Exists(tempDir))
+                    {
+                        Directory.Delete(tempDir, recursive: true);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to cleanup temp directory: {Path}", tempDir);
+                }
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────
+        //  VAD / Chunking helpers
+        // ────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Uses FFmpeg silencedetect to find speech segments in an audio file.
+        /// Returns a list of (start, end) time ranges where speech is present.
+        /// </summary>
+        private async Task<List<(double Start, double End)>> DetectSpeechSegmentsAsync(
+            string audioPath, double totalDuration, CancellationToken cancellationToken)
+        {
+            var ffmpegPath = FindFfmpegExecutable();
+            if (ffmpegPath == null)
+            {
+                _logger.LogWarning("FFmpeg not found, cannot run VAD");
+                return new List<(double, double)>();
+            }
+
+            // silencedetect: noise threshold -30dB, minimum silence duration 0.5s
+            var arguments = $"-i \"{audioPath}\" -af silencedetect=noise=-30dB:d=0.5 -f null -";
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = arguments,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            var errorBuilder = new StringBuilder();
+            process.ErrorDataReceived += (_, e) => { if (e.Data != null) errorBuilder.AppendLine(e.Data); };
+
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            await process.WaitForExitAsync(cancellationToken);
+
+            var output = errorBuilder.ToString();
+
+            // Parse silence intervals from ffmpeg stderr
+            var silenceIntervals = new List<(double Start, double End)>();
+            double? currentSilenceStart = null;
+
+            foreach (var line in output.Split('\n'))
+            {
+                var startMatch = Regex.Match(line, @"silence_start:\s*([\d.]+)");
+                if (startMatch.Success)
+                {
+                    currentSilenceStart = double.Parse(startMatch.Groups[1].Value,
+                        System.Globalization.CultureInfo.InvariantCulture);
+                    continue;
+                }
+
+                var endMatch = Regex.Match(line, @"silence_end:\s*([\d.]+)");
+                if (endMatch.Success && currentSilenceStart.HasValue)
+                {
+                    var silenceEnd = double.Parse(endMatch.Groups[1].Value,
+                        System.Globalization.CultureInfo.InvariantCulture);
+                    silenceIntervals.Add((currentSilenceStart.Value, silenceEnd));
+                    currentSilenceStart = null;
+                }
+            }
+
+            // Handle trailing silence (silence_start without matching silence_end)
+            if (currentSilenceStart.HasValue)
+            {
+                silenceIntervals.Add((currentSilenceStart.Value, totalDuration));
+            }
+
+            // Invert silence intervals to get speech segments
+            var speechSegments = new List<(double Start, double End)>();
+            double lastEnd = 0;
+
+            foreach (var silence in silenceIntervals)
+            {
+                if (silence.Start > lastEnd + 0.1) // Min 100ms speech segment
+                {
+                    speechSegments.Add((lastEnd, silence.Start));
+                }
+                lastEnd = silence.End;
+            }
+
+            if (lastEnd < totalDuration - 0.1)
+            {
+                speechSegments.Add((lastEnd, totalDuration));
+            }
+
+            // If no silence was detected, treat the entire audio as one speech segment
+            if (silenceIntervals.Count == 0 && totalDuration > 0)
+            {
+                speechSegments.Add((0, totalDuration));
+            }
+
+            _logger.LogInformation("VAD: {SilenceCount} silence intervals → {SpeechCount} speech segments in {Duration:F0}s audio",
+                silenceIntervals.Count, speechSegments.Count, totalDuration);
+
+            return speechSegments;
+        }
+
+        /// <summary>
+        /// Groups speech segments into chunks of approximately targetDuration seconds,
+        /// splitting only at silence boundaries (between speech segments).
+        /// </summary>
+        private static List<(double Start, double End)> GroupSpeechIntoChunks(
+            List<(double Start, double End)> speechSegments, double targetDuration = 30.0)
+        {
+            var chunks = new List<(double Start, double End)>();
+            if (speechSegments.Count == 0) return chunks;
+
+            double chunkStart = speechSegments[0].Start;
+            double chunkEnd = speechSegments[0].End;
+
+            for (int i = 1; i < speechSegments.Count; i++)
+            {
+                var segment = speechSegments[i];
+
+                if (segment.End - chunkStart <= targetDuration)
+                {
+                    // Extend current chunk
+                    chunkEnd = segment.End;
+                }
+                else
+                {
+                    // Finalize current chunk
+                    chunks.Add((chunkStart, chunkEnd));
+                    chunkStart = segment.Start;
+                    chunkEnd = segment.End;
+                }
+            }
+
+            // Don't forget the last chunk
+            chunks.Add((chunkStart, chunkEnd));
+
+            return chunks;
+        }
+
+        /// <summary>
+        /// Fallback: generate fixed-duration chunks when VAD is unavailable.
+        /// </summary>
+        private static List<(double Start, double End)> GenerateFixedChunks(double totalDuration, double chunkDuration)
+        {
+            var chunks = new List<(double Start, double End)>();
+            for (double start = 0; start < totalDuration; start += chunkDuration)
+            {
+                chunks.Add((start, Math.Min(start + chunkDuration, totalDuration)));
+            }
+            return chunks;
+        }
+
+        /// <summary>
+        /// Merges consecutive foreign chunks with the same language and small gaps (&lt;5s).
+        /// </summary>
+        private static List<(double Start, double End, string Language)> MergeForeignChunks(
+            List<(double Start, double End, string Language)> chunks)
+        {
+            if (chunks.Count == 0) return new List<(double, double, string)>();
+
+            var merged = new List<(double Start, double End, string Language)>();
+            var current = chunks[0];
+
+            for (int i = 1; i < chunks.Count; i++)
+            {
+                if (string.Equals(chunks[i].Language, current.Language, StringComparison.OrdinalIgnoreCase)
+                    && chunks[i].Start - current.End < 5.0)
+                {
+                    // Merge: extend current segment
+                    current = (current.Start, chunks[i].End, current.Language);
+                }
+                else
+                {
+                    merged.Add(current);
+                    current = chunks[i];
+                }
+            }
+            merged.Add(current);
+
+            return merged;
+        }
+
+        /// <summary>
+        /// Extracts an audio chunk from a WAV file using FFmpeg.
+        /// </summary>
+        private async Task ExtractAudioChunkAsync(
+            string sourceAudioPath, string outputPath,
+            double startSeconds, double durationSeconds,
+            CancellationToken cancellationToken)
+        {
+            var ffmpegPath = FindFfmpegExecutable();
+            if (ffmpegPath == null) throw new InvalidOperationException("FFmpeg not found");
+
+            var arguments = $"-ss {startSeconds:F3} -t {durationSeconds:F3} -i \"{sourceAudioPath}\" " +
+                            $"-acodec pcm_s16le -ac 1 -ar 16000 -y \"{outputPath}\"";
+
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = arguments,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            process.BeginErrorReadLine();
+            await process.WaitForExitAsync(cancellationToken);
+
+            if (process.ExitCode != 0 || !File.Exists(outputPath))
+            {
+                throw new InvalidOperationException(
+                    $"Failed to extract audio chunk at {startSeconds:F1}s ({durationSeconds:F1}s)");
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────
+        //  Existing helpers (language detection, audio extraction, etc.)
+        // ────────────────────────────────────────────────────────────
 
         /// <summary>
         /// Resolves the target language(s) for subtitle generation.
@@ -198,7 +624,6 @@ namespace WhisperSubs.Controller
                             var lang = langProp.GetString();
                             if (!string.IsNullOrEmpty(lang) && lang != "und")
                             {
-                                // Normalize 3-letter codes to 2-letter where possible
                                 var normalized = NormalizeLanguageCode(lang);
                                 if (!languages.Contains(normalized))
                                 {

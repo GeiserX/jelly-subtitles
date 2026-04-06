@@ -144,11 +144,26 @@ namespace WhisperSubs.ScheduledTasks
                 {
                     var baseName = System.IO.Path.GetFileNameWithoutExtension(mediaPath);
                     var dir = System.IO.Path.GetDirectoryName(mediaPath);
-                    if (dir != null && System.IO.Directory.GetFiles(dir, baseName + ".*.generated.srt").Length > 0)
+                    if (dir != null)
                     {
-                        completed++;
-                        progress.Report((double)completed / allItems.Count * 100);
-                        continue;
+                        var existingFiles = System.IO.Directory.GetFiles(dir, baseName + ".*.generated.srt");
+                        var hasFullSrt = existingFiles.Any(f => !f.Contains(".forced."));
+                        var hasForcedSrt = existingFiles.Any(f => f.Contains(".forced."));
+
+                        bool alreadyComplete = config.SubtitleMode switch
+                        {
+                            Configuration.SubtitleMode.Full => hasFullSrt,
+                            Configuration.SubtitleMode.ForcedOnly => hasForcedSrt,
+                            Configuration.SubtitleMode.FullAndForced => hasFullSrt && hasForcedSrt,
+                            _ => hasFullSrt
+                        };
+
+                        if (alreadyComplete)
+                        {
+                            completed++;
+                            progress.Report((double)completed / allItems.Count * 100);
+                            continue;
+                        }
                     }
                 }
 

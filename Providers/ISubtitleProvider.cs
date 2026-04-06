@@ -7,5 +7,11 @@ namespace WhisperSubs.Providers
     {
         string Name { get; }
         Task<string> TranscribeAsync(string audioPath, string language, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Detects the language spoken in an audio file.
+        /// Returns the ISO 639-1 language code and confidence probability.
+        /// </summary>
+        Task<(string Language, float Probability)> DetectLanguageAsync(string audioPath, CancellationToken cancellationToken);
     }
 }

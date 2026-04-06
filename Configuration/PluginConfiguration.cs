@@ -16,6 +16,11 @@ namespace WhisperSubs.Configuration
         /// </summary>
         public string DefaultLanguage { get; set; } = "auto";
 
+        /// <summary>
+        /// Controls whether to generate full subtitles, forced-only subtitles, or both.
+        /// </summary>
+        public SubtitleMode SubtitleMode { get; set; } = SubtitleMode.Full;
+
         public List<string> EnabledLibraries { get; set; } = new List<string>();
 
         public PluginConfiguration()
