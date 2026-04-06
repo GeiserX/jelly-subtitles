@@ -157,7 +157,8 @@ namespace WhisperSubs.ScheduledTasks
                     {
                         var existingFiles = System.IO.Directory.GetFiles(dir, baseName + ".*.generated.srt");
                         var noForeignMarkers = System.IO.Directory.GetFiles(dir, baseName + ".*.forced.noforeignlang");
-                        var hasFullSrt = existingFiles.Any(f => !System.IO.Path.GetFileName(f).Contains(".forced."));
+                        var hasFullSrt = existingFiles.Any(f => !System.IO.Path.GetFileName(f).Contains(".forced."))
+                            || item.HasSubtitles;
                         var hasForcedSrt = existingFiles.Any(f => System.IO.Path.GetFileName(f).Contains(".forced.")) || noForeignMarkers.Length > 0;
 
                         bool alreadyComplete = config.SubtitleMode switch
