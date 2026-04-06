@@ -29,13 +29,35 @@ Plugin.cs                          Entry point, IHasWebPages (embeds config UI)
     └── configPage.html            Admin UI (embedded resource) — vanilla JS, Jellyfin emby-* components
 ```
 
-### Data Flow
+### Data Flow — Full Subtitles
 
 1. **Language detection** — `SubtitleManager.DetectAudioLanguagesAsync` calls FFprobe to read audio stream language tags. ISO 639-2/B codes are normalized to 639-1 (e.g., `spa` → `es`).
 2. **Audio extraction** — FFmpeg extracts 16kHz mono PCM WAV from the media file to a temp path.
 3. **Transcription** — `WhisperProvider.TranscribeAsync` invokes `whisper-cli` as a child process with the model and audio file. Output is an SRT file.
 4. **Save** — The SRT content is written alongside the media as `<filename>.<lang>.generated.srt`.
 5. **Metadata refresh** — `item.RefreshMetadata()` tells Jellyfin to pick up the new subtitle file.
+
+### Data Flow — Forced Subtitles (v3.0.0+)
+
+Forced subtitles capture only foreign-language dialogue segments (e.g., Russian dialogue in an English film). The pipeline:
+
+1. **VAD (Voice Activity Detection)** — FFmpeg `silencedetect` splits the full audio into speech chunks using `-30dB:d=0.5` thresholds.
+2. **Per-chunk language detection** — Each chunk is fed to `WhisperProvider.DetectLanguageAsync` (whisper `--detect-language` mode). Returns a language code + probability.
+3. **Foreign segment identification** — Chunks where `detectedLang != primaryLang && probability >= 0.3` are marked as foreign. Adjacent foreign chunks are merged.
+4. **Selective transcription** — Only the foreign segments are extracted and transcribed individually, with timestamps offset to match the original media timeline.
+5. **Save** — Written as `<filename>.<lang>.forced.generated.srt`.
+6. **No-foreign marker** — If zero foreign chunks are detected (and at least one detection succeeded), a `<filename>.<lang>.forced.noforeignlang` empty marker file is written to skip the item on future runs.
+
+**SubtitleMode** enum controls behavior:
+- `Full` (0) — Only full transcription
+- `ForcedOnly` (1) — Only forced subtitle detection
+- `FullAndForced` (2) — Both (default)
+
+### Configuration — Thread Count (v3.1.0+)
+
+`WhisperThreadCount` controls the `-t N` flag passed to whisper-cli. Default `0` = whisper's internal default (4 threads). Set to your CPU core count for faster transcription. On a 20-thread CPU, this can yield ~12-13x parallelism.
+
+**Important**: WhisperProvider instances capture config values at construction time. Config changes via the API don't affect already-running provider instances — a Jellyfin restart is required for thread count changes to take effect.
 
 ### Queue System
 
@@ -132,24 +154,38 @@ Each candidate is tested with `--help`. The first one that exits with code 0 or 
 
 ### Build requirements for Docker
 
-The whisper-cli binary must be built for the same environment as the Jellyfin container (Debian Trixie / glibc). Building on the host and mounting won't work if glibc versions differ.
+The whisper-cli binary must be built for the same environment as the Jellyfin container. Jellyfin 10.11.x uses Debian Trixie/Sid. Building on the host and mounting won't work if glibc versions differ.
 
 **Build inside the running container or a matching Docker image.**
 
 ```bash
-# Inside the Jellyfin container (or debian:trixie):
-apt-get install -y git cmake g++ make libvulkan-dev glslc
-git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper
+# CPU-only build (any Debian):
+apt-get install -y git cmake g++ make
+git clone --depth 1 --branch v1.8.4 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper
 cd /tmp/whisper
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=ON
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
 cmake --build build --config Release -j$(nproc)
 # Binary: build/bin/whisper-cli
 ```
 
+```bash
+# Vulkan (GPU) build — requires glslc SPIR-V compiler:
+apt-get install -y git cmake g++ make pkg-config libvulkan-dev glslc
+# On Debian Bookworm: `glslc` is in the `shaderc` package — install `shaderc` if `glslc` is not found
+# On Debian Trixie: `glslc` package exists directly
+git clone --depth 1 --branch v1.8.4 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper
+cd /tmp/whisper
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=ON
+cmake --build build --config Release -j$(nproc)
+# Binary: build/bin/whisper-cli
+# Verify: ldd build/bin/whisper-cli | grep vulkan
+```
+
 Key flags:
 - **`-DBUILD_SHARED_LIBS=OFF`** — Static link whisper/ggml libraries into the binary. Without this, you get `libwhisper.so.1: cannot open shared object file` at runtime.
-- **`-DGGML_VULKAN=ON`** — Intel/AMD GPU acceleration via Vulkan. Requires `libvulkan-dev` and `glslc` at build time, `libvulkan1` and `mesa-vulkan-drivers` at runtime.
+- **`-DGGML_VULKAN=ON`** — Intel/AMD GPU acceleration via Vulkan. Requires `libvulkan-dev` and `glslc` (SPIR-V compiler) at build time, `libvulkan1` and `mesa-vulkan-drivers` (or `intel-media-va-driver`) at runtime.
 - **`-DGGML_CUDA=ON`** — NVIDIA GPU acceleration. Requires CUDA toolkit.
+- **Common build failure**: `Could NOT find Vulkan (missing: glslc)` — the `glslang-tools` / `glslang-dev` packages do NOT provide `glslc`. You need the `glslc` or `shaderc` package specifically.
 
 ### Persistent storage
 
@@ -190,6 +226,28 @@ docker exec jellyfin /opt/whisper/whisper-cli \
 # And: "whisper_backend_init_gpu: using Vulkan0 backend"
 # If it says "no GPU found", check VK_ICD_FILENAMES
 ```
+
+## Performance Benchmarks
+
+Tested with a 2h15m film (8107s audio), large-v3 model, 5-beam search.
+
+| Config | Wall time | Real-time factor | CPU usage |
+|--------|-----------|------------------|-----------|
+| CPU, 4 threads (default) | ~7h+ (est.) | ~3.2x | ~400% |
+| CPU, 16 threads (i5-14500) | 1h48m | 0.80x | ~1270% |
+
+Per-segment breakdown (16 threads):
+- Encode: 13,010ms per 30s segment (278 segments) — 56% of total time
+- Batch decode: 23ms per run — fast
+- Total: 6,477,485ms
+
+**GPU offloading is critical** — the encode step dominates and is highly parallelizable on GPU. With Vulkan on Intel UHD 770, expect 2-4x overall speedup.
+
+### Known quality issues
+
+- **Hallucination on non-speech audio**: During music, credits, or silence, large-v3 generates nonsense (e.g., "Suscríbete al canal!"). The `--suppress-non-speech` (`-sns`) flag helps but doesn't eliminate it.
+- **Language detection false positives**: At `probability >= 0.3`, concert/music audio can be misidentified as foreign language (e.g., Aerosmith concert detected as Japanese with p=0.316). Consider raising the threshold for non-dialogue content.
+- **Hallucination signatures**: Common in Spanish: "La Iglesia de Jesucristo de los Santos de los Últimos Días", "Suscríbete al canal", "Subtítulos por". These appear in credits and silent segments.
 
 ## Subtitle File Naming
 
