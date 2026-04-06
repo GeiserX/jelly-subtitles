@@ -83,6 +83,22 @@
                         </div>
                     </div>
 
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="selectSubtitleMode">Subtitle Mode</label>
+                        <select is="emby-select" id="selectSubtitleMode" name="SubtitleMode">
+                            <option value="0">Full</option>
+                            <option value="1">Forced Only</option>
+                            <option value="2">Full + Forced</option>
+                        </select>
+                        <div class="fieldDescription">
+                            <strong>Full</strong> transcribes all speech (default).
+                            <strong>Forced Only</strong> generates subtitles only for segments where the spoken language
+                            differs from the audio track's primary language (e.g., French dialogue in an English movie).
+                            <strong>Full + Forced</strong> generates both files per track.
+                            Forced subtitles are saved as <code>.forced.generated.srt</code> and auto-recognized by Jellyfin.
+                        </div>
+                    </div>
+
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label>
                             <input is="emby-checkbox" type="checkbox" id="chkEnableAutoGeneration" name="EnableAutoGeneration" />
@@ -197,6 +213,7 @@
                             page.querySelector('#txtWhisperBinaryPath').value = config.WhisperBinaryPath || '';
                             page.querySelector('#txtWhisperModelPath').value = config.WhisperModelPath || '';
                             page.querySelector('#selectDefaultLanguage').value = config.DefaultLanguage || 'auto';
+                            page.querySelector('#selectSubtitleMode').value = (config.SubtitleMode != null ? config.SubtitleMode : 0).toString();
                             page.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration || false;
                         }
                         WhisperSubsConfig.loadModels();
@@ -211,6 +228,7 @@
                         config.WhisperBinaryPath = page.querySelector('#txtWhisperBinaryPath').value;
                         config.WhisperModelPath = page.querySelector('#txtWhisperModelPath').value;
                         config.DefaultLanguage = page.querySelector('#selectDefaultLanguage').value;
+                        config.SubtitleMode = parseInt(page.querySelector('#selectSubtitleMode').value, 10);
                         config.EnableAutoGeneration = page.querySelector('#chkEnableAutoGeneration').checked;
                         ApiClient.updatePluginConfiguration(WhisperSubsConfig.pluginId, config).then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);

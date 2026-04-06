@@ -246,7 +246,6 @@ namespace WhisperSubs.Api
 
                 if (string.Equals(lang, "auto", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Look for any generated subtitle file
                     var dir = System.IO.Path.GetDirectoryName(item.Path);
                     var baseName = System.IO.Path.GetFileNameWithoutExtension(item.Path);
                     var found = new List<string>();
@@ -259,21 +258,28 @@ namespace WhisperSubs.Api
                         }
                     }
 
+                    var fullFiles = found.Where(f => !System.IO.Path.GetFileName(f).Contains(".forced.")).ToList();
+                    var forcedFiles = found.Where(f => System.IO.Path.GetFileName(f).Contains(".forced.")).ToList();
+
                     return Ok(new SubtitleStatus
                     {
                         ItemId = itemId,
-                        HasGeneratedSubtitle = found.Count > 0,
+                        HasGeneratedSubtitle = fullFiles.Count > 0,
+                        HasForcedSubtitle = forcedFiles.Count > 0,
                         SubtitlePath = found.Count > 0 ? string.Join("; ", found) : null
                     });
                 }
 
                 var subtitlePath = System.IO.Path.ChangeExtension(item.Path, $".{lang}.generated.srt");
+                var forcedSubtitlePath = System.IO.Path.ChangeExtension(item.Path, $".{lang}.forced.generated.srt");
                 var hasGeneratedSubtitle = System.IO.File.Exists(subtitlePath);
+                var hasForcedSubtitle = System.IO.File.Exists(forcedSubtitlePath);
 
                 return Ok(new SubtitleStatus
                 {
                     ItemId = itemId,
                     HasGeneratedSubtitle = hasGeneratedSubtitle,
+                    HasForcedSubtitle = hasForcedSubtitle,
                     SubtitlePath = hasGeneratedSubtitle ? subtitlePath : null
                 });
             }
@@ -384,6 +390,7 @@ namespace WhisperSubs.Api
     {
         public string ItemId { get; set; } = string.Empty;
         public bool HasGeneratedSubtitle { get; set; }
+        public bool HasForcedSubtitle { get; set; }
         public string? SubtitlePath { get; set; }
     }
 
