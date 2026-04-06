@@ -182,8 +182,9 @@ namespace WhisperSubs.Controller
             }
 
             var forcedSrtPath = Path.ChangeExtension(mediaPath, $".{resolvedPrimary}.forced.generated.srt");
+            var noForeignMarkerPath = Path.ChangeExtension(mediaPath, $".{resolvedPrimary}.forced.noforeignlang");
 
-            // Skip if already exists and non-empty
+            // Skip if forced SRT already exists with content
             if (File.Exists(forcedSrtPath))
             {
                 var existing = await File.ReadAllTextAsync(forcedSrtPath, cancellationToken);
@@ -193,6 +194,14 @@ namespace WhisperSubs.Controller
                         item.Name, resolvedPrimary);
                     return;
                 }
+            }
+
+            // Skip if previously analyzed and found no foreign dialogue
+            if (File.Exists(noForeignMarkerPath))
+            {
+                _logger.LogInformation("No-foreign-language marker exists for {ItemName} [{Language}], skipping",
+                    item.Name, resolvedPrimary);
+                return;
             }
 
             var tempDir = Path.Combine(Path.GetTempPath(), $"whispersubs_{item.Id:N}_{Guid.NewGuid():N}");
@@ -268,9 +277,9 @@ namespace WhisperSubs.Controller
 
                 if (foreignChunks.Count == 0)
                 {
-                    // Write empty marker so the scheduled task won't reprocess this item
-                    await File.WriteAllTextAsync(forcedSrtPath, "", CancellationToken.None);
-                    _logger.LogInformation("No foreign language segments found in {ItemName}, wrote empty marker", item.Name);
+                    // Write marker (not .srt) so the task won't reprocess but Jellyfin won't show an empty track
+                    await File.WriteAllTextAsync(noForeignMarkerPath, "", CancellationToken.None);
+                    _logger.LogInformation("No foreign language segments found in {ItemName}, wrote no-foreign marker", item.Name);
                     return;
                 }
 
