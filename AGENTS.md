@@ -355,7 +355,7 @@ docker inspect jellyfin --format '{{range .Mounts}}{{.Source}} -> {{.Destination
 
 ## Development Notes
 
-- The `.csproj` targets `net9.0` and references `Jellyfin.Model` and `Jellyfin.Controller` 10.11.0.
+- The `.csproj` targets `net9.0` and references `Jellyfin.Model` and `Jellyfin.Controller` 10.11.8.
 - The config page HTML is an embedded resource — changes require rebuilding the DLL.
 - `Plugin.Instance` is a static singleton set in the constructor. All components access config via `Plugin.Instance.Configuration`.
 - The `ISubtitleProvider` interface is designed for extensibility (Parakeet, custom commands), but only `WhisperProvider` is currently implemented.
