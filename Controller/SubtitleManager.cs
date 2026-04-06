@@ -89,7 +89,7 @@ namespace WhisperSubs.Controller
                     _logger.LogInformation("Resuming subtitle for {ItemName} [{Language}] from {Offset:F1}s ({Entries} existing entries)",
                         item.Name, lang, resumeOffsetSeconds, existingEntryCount);
                 }
-                else if (await GetMediaDurationAsync(mediaPath, cancellationToken) <= 0)
+                else if (mediaDuration <= 0)
                 {
                     _logger.LogInformation("Subtitle exists for {ItemName} [{Language}] (can't verify completeness), skipping", item.Name, lang);
                     return;

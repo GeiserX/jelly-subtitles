@@ -90,7 +90,7 @@ namespace WhisperSubs.Providers
                 _logger.LogInformation("Running: {Executable} {Arguments}", whisperExecutable,
                     string.Join(" ", startInfo.ArgumentList));
 
-                var process = new Process { StartInfo = startInfo };
+                using var process = new Process { StartInfo = startInfo };
 
                 var errorBuilder = new StringBuilder();
 
@@ -215,7 +215,7 @@ namespace WhisperSubs.Providers
             _logger.LogDebug("Running: {Executable} {Arguments}", whisperExecutable,
                 string.Join(" ", startInfo.ArgumentList));
 
-            var process = new Process { StartInfo = startInfo };
+            using var process = new Process { StartInfo = startInfo };
             var outputBuilder = new StringBuilder();
             var errorBuilder = new StringBuilder();
 
@@ -228,7 +228,9 @@ namespace WhisperSubs.Providers
 
             try
             {
-                await process.WaitForExitAsync(cancellationToken);
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeoutCts.CancelAfter(TimeSpan.FromSeconds(120));
+                await process.WaitForExitAsync(timeoutCts.Token);
             }
             catch (OperationCanceledException)
             {
