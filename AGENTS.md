@@ -49,15 +49,15 @@ Forced subtitles capture only foreign-language dialogue segments (e.g., Russian 
 6. **No-foreign marker** — If zero foreign chunks are detected (and at least one detection succeeded), a `<filename>.<lang>.forced.noforeignlang` empty marker file is written to skip the item on future runs.
 
 **SubtitleMode** enum controls behavior:
-- `Full` (0) — Only full transcription
+- `Full` (0, default) — Only full transcription
 - `ForcedOnly` (1) — Only forced subtitle detection
-- `FullAndForced` (2) — Both (default)
+- `FullAndForced` (2) — Both
 
 ### Configuration — Thread Count (v3.1.0+)
 
 `WhisperThreadCount` controls the `-t N` flag passed to whisper-cli. Default `0` = whisper's internal default (4 threads). Set to your CPU core count for faster transcription. On a 20-thread CPU, this can yield ~12-13x parallelism.
 
-**Important**: WhisperProvider instances capture config values at construction time. Config changes via the API don't affect already-running provider instances — a Jellyfin restart is required for thread count changes to take effect.
+WhisperProvider instances are constructed fresh for each work item (both in `SubtitleController` and `SubtitleGenerationTask`), so config changes via the plugin settings page take effect on the next work item without a Jellyfin restart.
 
 ### Queue System
 
@@ -67,7 +67,7 @@ Manual subtitle requests go through `SubtitleQueueService`:
 - **`EnsureDraining()`** — Starts a single background worker if one isn't already running. Uses `Interlocked.CompareExchange` for thread safety.
 - **Race condition protection** — After the drain loop exits, it re-checks the queue and restarts if new items arrived during the `finally` block.
 - **Skip existing** — The drain loop checks for `.generated.srt` files before processing, so re-queuing after a restart is safe (already-done items are skipped instantly).
-- **In-memory only** — The queue does NOT persist across Jellyfin restarts. The scheduled task compensates by scanning for items without subtitles on startup.
+- **Persisted to disk** — The queue is saved to `queue.json` in the plugin data folder (`/config/data/WhisperSubs/queue.json`) on every enqueue/dequeue. On startup, `RestoreQueue()` reloads pending items before the library scan begins.
 
 ### Scheduled Task
 
@@ -122,6 +122,8 @@ The GitHub Actions workflow (`.github/workflows/build-release.yml`) triggers on 
 5. Deploys to GitHub Pages (serves the plugin repository manifest)
 
 Version is read from `<Version>` in `WhisperSubs.csproj`. Bump it there before pushing.
+
+**Note:** The `manifest.json` in the source tree is NOT authoritative — CI generates a fresh one with the correct version, checksum, and `sourceUrl` and deploys it to GitHub Pages. The checked-in copy is stale and only exists for reference.
 
 ## Config Page (Web UI)
 
@@ -211,11 +213,7 @@ The `VK_ICD_FILENAMES` env var is critical — without it, the Vulkan loader may
 - **Intel:** `/usr/share/vulkan/icd.d/intel_icd.json`
 - **AMD:** `/usr/share/vulkan/icd.d/radeon_icd.json`
 
-Plus install Vulkan runtime in the container entrypoint:
-
-```bash
-apt-get install -y libvulkan1 mesa-vulkan-drivers libgomp1
-```
+The GPU wrapper script (`whisper-cli-gpu`) is self-healing: it checks for the Vulkan ICD file on each invocation and runs `apt-get install` if missing. This survives container recreates without requiring entrypoint modifications. The one-time install adds ~10s to the first transcription after a fresh container.
 
 Verify GPU detection:
 
@@ -241,7 +239,12 @@ Per-segment breakdown (16 threads):
 - Batch decode: 23ms per run — fast
 - Total: 6,477,485ms
 
-**GPU offloading is critical** — the encode step dominates and is highly parallelizable on GPU. With Vulkan on Intel UHD 770, expect 2-4x overall speedup.
+**GPU offloading is critical** — the encode step dominates and is highly parallelizable on GPU. With Vulkan on Intel UHD 770, expect 2-4x overall speedup for full transcription.
+
+**Known GPU regression for language detection**: The `DetectLanguageAsync` path spawns a new whisper process per chunk, each loading the 3GB model + compiling Vulkan shaders. This per-invocation overhead makes GPU *slower* than CPU for short operations (~21s/chunk vs ~15s/chunk). Options to address:
+- Separate `WhisperBinaryPath` for detection (CPU) vs transcription (GPU)
+- A `--no-gpu` flag for detection calls
+- A persistent `whisper-server` process that stays loaded
 
 ### Known quality issues
 
@@ -284,7 +287,7 @@ The binary was built with shared libraries. Rebuild with `-DBUILD_SHARED_LIBS=OF
 Set `VK_ICD_FILENAMES` environment variable in the container. See [GPU passthrough](#gpu-passthrough-docker) above.
 
 ### Queue stops processing after restart
-The queue is in-memory. After a Jellyfin restart, re-queue items via the API or wait for the scheduled task to pick them up automatically (it scans for items without subtitles).
+The queue persists to disk, so pending items are restored on Jellyfin restart. If items still appear missing, the scheduled task will re-scan and pick them up automatically.
 
 ### High CPU during transcription
 If not using GPU acceleration, whisper.cpp uses all available CPU cores. Consider:
@@ -337,7 +340,7 @@ docker inspect jellyfin --format '{{range .Mounts}}{{.Source}} -> {{.Destination
 
 ## Queue Persistence & Concurrency
 
-- **Queue persists to disk** as `queue.json` in the plugin data folder (`/config/plugins/WhisperSubs/queue.json`). Updated on every enqueue/dequeue. On startup, `RestoreQueue()` reloads all entries and drains them before the library scan begins.
+- **Queue persists to disk** as `queue.json` in the plugin data folder (`/config/data/WhisperSubs/queue.json`). Updated on every enqueue/dequeue. On startup, `RestoreQueue()` reloads all entries and drains them before the library scan begins.
 - **Global `TranscriptionLock`** (`SemaphoreSlim(1,1)`) prevents concurrent whisper processes. Both the drain loop and the scheduled task must acquire it. Without this, two whisper processes run simultaneously and can OOM the container (11.4 GB / 12 GB observed).
 - **Per-language error isolation**: If whisper fails on one language (e.g. `en`), the error is caught and logged but does not abort remaining languages (e.g. `es` SRT is still saved). Only `OperationCanceledException` propagates up.
 - **whisper.cpp writes SRT only at completion** — not incrementally. Mid-process kills produce no partial file. The resume feature only helps when whisper finishes writing a file that covers part of the media (rare edge case).
