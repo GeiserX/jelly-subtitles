@@ -242,6 +242,7 @@ namespace WhisperSubs.Controller
 
                 // Step 5: Language detection per chunk
                 var foreignChunks = new List<(double Start, double End, string Language)>();
+                int successfulDetections = 0;
 
                 for (int i = 0; i < chunks.Count; i++)
                 {
@@ -258,6 +259,7 @@ namespace WhisperSubs.Controller
                     {
                         await ExtractAudioChunkAsync(fullAudioPath, chunkPath, chunk.Start, chunkDuration, cancellationToken);
                         var (detectedLang, probability) = await provider.DetectLanguageAsync(chunkPath, cancellationToken);
+                        successfulDetections++;
 
                         _logger.LogDebug("Chunk {Index}/{Total}: {Start:F1}s-{End:F1}s → {Language} (p={Prob:F3})",
                             i + 1, chunks.Count, chunk.Start, chunk.End, detectedLang, probability);
@@ -275,11 +277,19 @@ namespace WhisperSubs.Controller
                     }
                 }
 
+                if (foreignChunks.Count == 0 && successfulDetections == 0)
+                {
+                    _logger.LogWarning("All {Count} language detection attempts failed for {ItemName} — not writing marker (will retry next run)",
+                        chunks.Count, item.Name);
+                    return;
+                }
+
                 if (foreignChunks.Count == 0)
                 {
                     // Write marker (not .srt) so the task won't reprocess but Jellyfin won't show an empty track
                     await File.WriteAllTextAsync(noForeignMarkerPath, "", CancellationToken.None);
-                    _logger.LogInformation("No foreign language segments found in {ItemName}, wrote no-foreign marker", item.Name);
+                    _logger.LogInformation("No foreign language segments found in {ItemName} ({Checked} chunks checked), wrote no-foreign marker",
+                        item.Name, successfulDetections);
                     return;
                 }
 
