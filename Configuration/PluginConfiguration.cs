@@ -21,6 +21,12 @@ namespace WhisperSubs.Configuration
         /// </summary>
         public SubtitleMode SubtitleMode { get; set; } = SubtitleMode.Full;
 
+        /// <summary>
+        /// Number of threads for whisper.cpp inference. 0 = whisper default (4).
+        /// Higher values use more CPU cores for faster transcription.
+        /// </summary>
+        public int WhisperThreadCount { get; set; } = 0;
+
         public List<string> EnabledLibraries { get; set; } = new List<string>();
 
         public PluginConfiguration()

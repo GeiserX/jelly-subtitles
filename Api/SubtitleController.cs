@@ -159,7 +159,8 @@ namespace WhisperSubs.Api
                 var provider = new WhisperProvider(
                     _loggerFactory.CreateLogger<WhisperProvider>(),
                     config.WhisperModelPath,
-                    config.WhisperBinaryPath);
+                    config.WhisperBinaryPath,
+                    config.WhisperThreadCount);
                 queue.EnsureDraining(manager, provider, _logger, CancellationToken.None);
 
                 return Accepted(new

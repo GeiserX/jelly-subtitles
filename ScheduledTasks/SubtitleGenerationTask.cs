@@ -71,7 +71,8 @@ namespace WhisperSubs.ScheduledTasks
             var provider = new WhisperProvider(
                 _loggerFactory.CreateLogger<WhisperProvider>(),
                 config.WhisperModelPath,
-                config.WhisperBinaryPath);
+                config.WhisperBinaryPath,
+                config.WhisperThreadCount);
             var language = config.DefaultLanguage;
             var queue = SubtitleQueueService.Instance;
 

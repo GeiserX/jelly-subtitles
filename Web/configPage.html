@@ -40,6 +40,12 @@
                         <div class="fieldDescription">Models found in the same directory as the configured model path. Selecting one updates the path above.</div>
                     </div>
 
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="txtWhisperThreadCount">Whisper Thread Count</label>
+                        <input type="number" id="txtWhisperThreadCount" name="WhisperThreadCount" class="emby-input" min="0" max="64" step="1" />
+                        <div class="fieldDescription">Number of CPU threads for whisper inference. 0 = whisper default (4). Set to your CPU core count for faster transcription.</div>
+                    </div>
+
                     <div class="selectContainer">
                         <label class="selectLabel" for="selectDefaultLanguage">Default Language</label>
                         <select is="emby-select" id="selectDefaultLanguage" name="DefaultLanguage">
@@ -212,6 +218,7 @@
                             page.querySelector('#selectProvider').value = config.SelectedProvider || 'Whisper';
                             page.querySelector('#txtWhisperBinaryPath').value = config.WhisperBinaryPath || '';
                             page.querySelector('#txtWhisperModelPath').value = config.WhisperModelPath || '';
+                            page.querySelector('#txtWhisperThreadCount').value = (config.WhisperThreadCount || 0).toString();
                             page.querySelector('#selectDefaultLanguage').value = config.DefaultLanguage || 'auto';
                             page.querySelector('#selectSubtitleMode').value = (config.SubtitleMode != null ? config.SubtitleMode : 0).toString();
                             page.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration || false;
@@ -227,6 +234,7 @@
                         config.SelectedProvider = page.querySelector('#selectProvider').value;
                         config.WhisperBinaryPath = page.querySelector('#txtWhisperBinaryPath').value;
                         config.WhisperModelPath = page.querySelector('#txtWhisperModelPath').value;
+                        config.WhisperThreadCount = parseInt(page.querySelector('#txtWhisperThreadCount').value, 10) || 0;
                         config.DefaultLanguage = page.querySelector('#selectDefaultLanguage').value;
                         config.SubtitleMode = parseInt(page.querySelector('#selectSubtitleMode').value, 10);
                         config.EnableAutoGeneration = page.querySelector('#chkEnableAutoGeneration').checked;

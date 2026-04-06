@@ -15,14 +15,16 @@ namespace WhisperSubs.Providers
         private readonly ILogger<WhisperProvider> _logger;
         private readonly string _modelPath;
         private readonly string _binaryPath;
+        private readonly int _threadCount;
 
         public string Name => "Whisper";
 
-        public WhisperProvider(ILogger<WhisperProvider> logger, string modelPath, string binaryPath = "")
+        public WhisperProvider(ILogger<WhisperProvider> logger, string modelPath, string binaryPath = "", int threadCount = 0)
         {
             _logger = logger;
             _modelPath = modelPath;
             _binaryPath = binaryPath;
+            _threadCount = threadCount;
         }
 
         public async Task<string> TranscribeAsync(string audioPath, string language, CancellationToken cancellationToken)
@@ -68,6 +70,11 @@ namespace WhisperSubs.Providers
                 startInfo.ArgumentList.Add(audioPath);
                 startInfo.ArgumentList.Add("-l");
                 startInfo.ArgumentList.Add(language);
+                if (_threadCount > 0)
+                {
+                    startInfo.ArgumentList.Add("-t");
+                    startInfo.ArgumentList.Add(_threadCount.ToString());
+                }
                 startInfo.ArgumentList.Add("-mc");
                 startInfo.ArgumentList.Add("0");
                 startInfo.ArgumentList.Add("-sns");
@@ -198,6 +205,11 @@ namespace WhisperSubs.Providers
             startInfo.ArgumentList.Add(audioPath);
             startInfo.ArgumentList.Add("-l");
             startInfo.ArgumentList.Add("auto");
+            if (_threadCount > 0)
+            {
+                startInfo.ArgumentList.Add("-t");
+                startInfo.ArgumentList.Add(_threadCount.ToString());
+            }
             startInfo.ArgumentList.Add("--detect-language");
 
             _logger.LogDebug("Running: {Executable} {Arguments}", whisperExecutable,
