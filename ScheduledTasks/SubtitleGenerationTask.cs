@@ -99,6 +99,11 @@ namespace WhisperSubs.ScheduledTasks
                 _logger.LogInformation("No libraries explicitly enabled, scanning all {Count} libraries", enabledLibraryIds.Count);
             }
 
+            // In ForcedOnly/FullAndForced modes, items with full subtitles but no forced
+            // subtitles must still be considered. Only filter by HasSubtitles in Full mode.
+            var needsForced = config.SubtitleMode == Configuration.SubtitleMode.ForcedOnly
+                || config.SubtitleMode == Configuration.SubtitleMode.FullAndForced;
+
             var allItems = new List<Video>();
             foreach (var libraryId in enabledLibraryIds)
             {
@@ -107,14 +112,17 @@ namespace WhisperSubs.ScheduledTasks
                     ParentId = libraryId,
                     IncludeItemTypes = new[] { BaseItemKind.Movie, BaseItemKind.Episode },
                     Recursive = true
-                }).OfType<Video>()
-                 .Where(v => !v.HasSubtitles)
-                 .ToList();
+                }).OfType<Video>();
 
-                allItems.AddRange(items);
+                if (!needsForced)
+                {
+                    items = items.Where(v => !v.HasSubtitles);
+                }
+
+                allItems.AddRange(items.ToList());
             }
 
-            _logger.LogInformation("Found {Count} items without subtitles across {LibCount} libraries",
+            _logger.LogInformation("Found {Count} candidate items across {LibCount} libraries",
                 allItems.Count, enabledLibraryIds.Count);
 
             if (allItems.Count == 0)

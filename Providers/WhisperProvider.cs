@@ -251,7 +251,7 @@ namespace WhisperSubs.Providers
             // "Detected language: en" (--detect-language mode)
             // "whisper_full_with_state: auto-detected language: en (p = 0.978)"
             var match = Regex.Match(allOutput,
-                @"(?:auto-)?[Dd]etected language:\s*(\w+)(?:\s*\(p\s*=\s*([\d.]+)\))?");
+                @"(?:auto-)?[Dd]etected language:\s*([\w]+(?:\s[\w]+)*)(?:\s*\(p\s*=\s*([\d.]+)\))?");
             if (match.Success)
             {
                 var lang = NormalizeLangName(match.Groups[1].Value);
@@ -315,6 +315,7 @@ namespace WhisperSubs.Providers
                 "catalan" => "ca",
                 "basque" => "eu",
                 "galician" => "gl",
+                "haitian creole" => "ht",
                 // Short codes (2-3 chars) pass through; unknown long names are logged and kept as-is
                 // rather than silently truncated to potentially invalid codes
                 _ => lang.ToLowerInvariant()
