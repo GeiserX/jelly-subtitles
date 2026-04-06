@@ -294,7 +294,9 @@ namespace WhisperSubs.Providers
                 "catalan" => "ca",
                 "basque" => "eu",
                 "galician" => "gl",
-                _ => lang.Length <= 3 ? lang.ToLowerInvariant() : lang.ToLowerInvariant()[..2]
+                // Short codes (2-3 chars) pass through; unknown long names are logged and kept as-is
+                // rather than silently truncated to potentially invalid codes
+                _ => lang.ToLowerInvariant()
             };
         }
 

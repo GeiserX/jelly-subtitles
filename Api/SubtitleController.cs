@@ -258,8 +258,8 @@ namespace WhisperSubs.Api
                         }
                     }
 
-                    var fullFiles = found.Where(f => !f.Contains(".forced.")).ToList();
-                    var forcedFiles = found.Where(f => f.Contains(".forced.")).ToList();
+                    var fullFiles = found.Where(f => !System.IO.Path.GetFileName(f).Contains(".forced.")).ToList();
+                    var forcedFiles = found.Where(f => System.IO.Path.GetFileName(f).Contains(".forced.")).ToList();
 
                     return Ok(new SubtitleStatus
                     {
