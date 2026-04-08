@@ -205,11 +205,10 @@ namespace WhisperSubs.Providers
             startInfo.ArgumentList.Add(audioPath);
             startInfo.ArgumentList.Add("-l");
             startInfo.ArgumentList.Add("auto");
-            if (_threadCount > 0)
-            {
-                startInfo.ArgumentList.Add("-t");
-                startInfo.ArgumentList.Add(_threadCount.ToString());
-            }
+            // Cap detection at 4 threads — detection is a trivial workload that doesn't
+            // benefit from high parallelism, and using 16 threads causes unnecessary CPU spikes.
+            startInfo.ArgumentList.Add("-t");
+            startInfo.ArgumentList.Add("4");
             startInfo.ArgumentList.Add("--detect-language");
 
             // Disable GPU for language detection. Each DetectLanguageAsync call spawns a
