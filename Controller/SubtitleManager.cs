@@ -389,27 +389,28 @@ namespace WhisperSubs.Controller
                 return;
             }
 
+            // Resolve transcription language (use first detected or configured).
+            // Jellyfin expects a single track.lrc sidecar, not per-language files.
             var languages = await ResolveLanguagesAsync(mediaPath, language, cancellationToken);
+            var transcriptionLang = languages.FirstOrDefault() ?? "auto";
 
-            foreach (var lang in languages)
-            {
-                await GenerateLyricsForLanguageAsync(item, provider, lang, mediaPath, cancellationToken);
-            }
+            await GenerateLyricsForTrackAsync(item, provider, transcriptionLang, mediaPath, cancellationToken);
 
             await item.RefreshMetadata(cancellationToken);
         }
 
-        private async Task GenerateLyricsForLanguageAsync(
+        private async Task GenerateLyricsForTrackAsync(
             BaseItem item, ISubtitleProvider provider, string lang,
             string mediaPath, CancellationToken cancellationToken)
         {
             var baseName = Path.GetFileNameWithoutExtension(mediaPath);
             var dir = Path.GetDirectoryName(mediaPath)!;
-            var lrcPath = Path.Combine(dir, $"{baseName}.{lang}.lrc");
+            // Jellyfin's LyricResolver expects track.lrc (matching the audio filename)
+            var lrcPath = Path.Combine(dir, $"{baseName}.lrc");
 
             if (File.Exists(lrcPath))
             {
-                _logger.LogInformation("Lyrics already exist for {ItemName} [{Language}], skipping", item.Name, lang);
+                _logger.LogInformation("Lyrics already exist for {ItemName}, skipping", item.Name);
                 return;
             }
 

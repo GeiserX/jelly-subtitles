@@ -410,10 +410,17 @@
                             var generateBtn = document.createElement('button');
                             generateBtn.setAttribute('is', 'emby-button');
                             generateBtn.className = 'raised';
-                            generateBtn.innerHTML = item.Type === 'Audio' ? '<span>Generate Lyrics</span>' : '<span>Generate</span>';
-                            generateBtn.onclick = (function (id, name) {
-                                return function () { WhisperSubsConfig.generateSubtitle(id, name); };
-                            })(item.Id, item.Name);
+                            var isAudioItem = item.Type === 'Audio';
+                            generateBtn.innerHTML = isAudioItem ? '<span>Generate Lyrics</span>' : '<span>Generate</span>';
+                            // Hide lyrics button for Audio items that already have .lrc files
+                            if (isAudioItem && item.HasSubtitles) {
+                                generateBtn.disabled = true;
+                                generateBtn.innerHTML = '<span>Lyrics exist</span>';
+                                generateBtn.title = 'LRC lyrics file already exists for this track';
+                            }
+                            generateBtn.onclick = (function (id, name, type) {
+                                return function () { WhisperSubsConfig.generateSubtitle(id, name, type); };
+                            })(item.Id, item.Name, item.Type);
                             actionsCell.appendChild(generateBtn);
 
                             row.appendChild(nameCell);
@@ -444,12 +451,15 @@
                     });
                 },
 
-                generateSubtitle: function (itemId, itemName) {
+                generateSubtitle: function (itemId, itemName, itemType) {
+                    var isAudio = itemType === 'Audio';
+                    var actionLabel = isAudio ? 'lyrics' : 'subtitle';
+                    var btnLabel = isAudio ? 'Generate Lyrics' : 'Generate';
                     var langSelect = document.querySelector('#lang_' + itemId);
                     var lang = langSelect ? langSelect.value : 'auto';
                     var langLabel = lang === 'auto' ? 'auto-detect' : lang;
 
-                    if (!confirm('Queue subtitle generation for:\n\n"' + (itemName || itemId) + '"\nLanguage: ' + langLabel + '\n\nThe item will be added to the front of the processing queue.')) {
+                    if (!confirm('Queue ' + actionLabel + ' generation for:\n\n"' + (itemName || itemId) + '"\nLanguage: ' + langLabel + '\n\nThe item will be added to the front of the processing queue.')) {
                         return;
                     }
 
@@ -467,16 +477,16 @@
                             btn.innerHTML = '<span>Queued &#10003;</span>';
                             setTimeout(function () {
                                 btn.disabled = false;
-                                btn.innerHTML = '<span>Generate</span>';
+                                btn.innerHTML = '<span>' + btnLabel + '</span>';
                             }, 3000);
                         }
-                        Dashboard.alert('Queued "' + itemName + '" for subtitle generation (priority).');
+                        Dashboard.alert('Queued "' + itemName + '" for ' + actionLabel + ' generation (priority).');
                     }).catch(function (error) {
                         if (btn) {
                             btn.disabled = false;
-                            btn.innerHTML = '<span>Generate</span>';
+                            btn.innerHTML = '<span>' + btnLabel + '</span>';
                         }
-                        console.error('WhisperSubs: error queuing subtitle', error);
+                        console.error('WhisperSubs: error queuing ' + actionLabel, error);
                         Dashboard.alert('Error queuing subtitle. Check the server log for details.');
                     });
                 }

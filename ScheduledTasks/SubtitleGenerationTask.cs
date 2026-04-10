@@ -162,17 +162,29 @@ namespace WhisperSubs.ScheduledTasks
                 // For Audio items (lyrics), skip if .lrc already exists
                 if (item is MediaBrowser.Controller.Entities.Audio.Audio)
                 {
-                    var audioPath = item.Path;
-                    if (!string.IsNullOrEmpty(audioPath))
+                    try
                     {
-                        var audioDir = System.IO.Path.GetDirectoryName(audioPath);
-                        var audioBase = System.IO.Path.GetFileNameWithoutExtension(audioPath);
-                        if (audioDir != null && System.IO.Directory.GetFiles(audioDir, audioBase + ".*.lrc").Length > 0)
+                        var audioPath = item.Path;
+                        if (!string.IsNullOrEmpty(audioPath))
                         {
-                            completed++;
-                            progress.Report((double)completed / allItems.Count * 100);
-                            continue;
+                            var audioDir = System.IO.Path.GetDirectoryName(audioPath);
+                            var audioBase = System.IO.Path.GetFileNameWithoutExtension(audioPath);
+                            if (audioDir != null)
+                            {
+                                // Check Jellyfin-standard track.lrc and language-tagged track.*.lrc
+                                var exactLrc = System.IO.Path.Combine(audioDir, audioBase + ".lrc");
+                                if (System.IO.File.Exists(exactLrc) || System.IO.Directory.GetFiles(audioDir, audioBase + ".*.lrc").Length > 0)
+                                {
+                                    completed++;
+                                    progress.Report((double)completed / allItems.Count * 100);
+                                    continue;
+                                }
+                            }
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Error checking lyrics for {ItemName}, will attempt generation", item.Name);
                     }
                 }
 

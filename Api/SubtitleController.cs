@@ -381,7 +381,12 @@ namespace WhisperSubs.Api
             var dir = System.IO.Path.GetDirectoryName(path);
             var baseName = System.IO.Path.GetFileNameWithoutExtension(path);
             if (dir == null) return false;
-            try { return System.IO.Directory.GetFiles(dir, baseName + ".*.lrc").Length > 0; }
+            try
+            {
+                // Check Jellyfin-standard track.lrc and language-tagged track.*.lrc
+                var exactLrc = System.IO.Path.Combine(dir, baseName + ".lrc");
+                return System.IO.File.Exists(exactLrc) || System.IO.Directory.GetFiles(dir, baseName + ".*.lrc").Length > 0;
+            }
             catch { return false; }
         }
     }
