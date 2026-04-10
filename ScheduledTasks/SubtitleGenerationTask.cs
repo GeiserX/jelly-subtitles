@@ -104,22 +104,34 @@ namespace WhisperSubs.ScheduledTasks
             var needsForced = config.SubtitleMode == Configuration.SubtitleMode.ForcedOnly
                 || config.SubtitleMode == Configuration.SubtitleMode.FullAndForced;
 
-            var allItems = new List<Video>();
+            var includeKinds = new List<BaseItemKind> { BaseItemKind.Movie, BaseItemKind.Episode };
+            if (config.EnableLyricsGeneration)
+            {
+                includeKinds.Add(BaseItemKind.Audio);
+            }
+
+            var allItems = new List<BaseItem>();
             foreach (var libraryId in enabledLibraryIds)
             {
                 var items = _libraryManager.GetItemList(new InternalItemsQuery
                 {
                     ParentId = libraryId,
-                    IncludeItemTypes = new[] { BaseItemKind.Movie, BaseItemKind.Episode },
+                    IncludeItemTypes = includeKinds.ToArray(),
                     Recursive = true
-                }).OfType<Video>();
+                });
 
-                if (!needsForced)
+                foreach (var queryItem in items)
                 {
-                    items = items.Where(v => !v.HasSubtitles);
+                    if (queryItem is Video video)
+                    {
+                        if (!needsForced && video.HasSubtitles) continue;
+                        allItems.Add(video);
+                    }
+                    else if (queryItem is MediaBrowser.Controller.Entities.Audio.Audio)
+                    {
+                        allItems.Add(queryItem);
+                    }
                 }
-
-                allItems.AddRange(items.ToList());
             }
 
             _logger.LogInformation("Found {Count} candidate items across {LibCount} libraries",
@@ -146,6 +158,23 @@ namespace WhisperSubs.ScheduledTasks
                 }
 
                 var item = allItems[i];
+
+                // For Audio items (lyrics), skip if .lrc already exists
+                if (item is MediaBrowser.Controller.Entities.Audio.Audio)
+                {
+                    var audioPath = item.Path;
+                    if (!string.IsNullOrEmpty(audioPath))
+                    {
+                        var audioDir = System.IO.Path.GetDirectoryName(audioPath);
+                        var audioBase = System.IO.Path.GetFileNameWithoutExtension(audioPath);
+                        if (audioDir != null && System.IO.Directory.GetFiles(audioDir, audioBase + ".*.lrc").Length > 0)
+                        {
+                            completed++;
+                            progress.Report((double)completed / allItems.Count * 100);
+                            continue;
+                        }
+                    }
+                }
 
                 // Skip if subtitle was already generated (e.g. from a previous run before restart)
                 var mediaPath = item.Path;

@@ -22,6 +22,13 @@ namespace WhisperSubs.Configuration
         public SubtitleMode SubtitleMode { get; set; } = SubtitleMode.Full;
 
         /// <summary>
+        /// When enabled, music libraries are scanned and audio tracks receive
+        /// .lrc lyrics files generated via whisper transcription.
+        /// Experimental: whisper models are optimized for speech, not singing.
+        /// </summary>
+        public bool EnableLyricsGeneration { get; set; } = false;
+
+        /// <summary>
         /// Number of threads for whisper.cpp inference. 0 = whisper default (4).
         /// Higher values use more CPU cores for faster transcription.
         /// </summary>

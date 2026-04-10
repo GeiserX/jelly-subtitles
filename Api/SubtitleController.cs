@@ -87,7 +87,9 @@ namespace WhisperSubs.Api
                     return NotFound(new { error = "Library not found" });
                 }
 
-                var includeTypes = GetBaseItemKinds("Movie,Episode");
+                var config = Plugin.Instance.Configuration;
+                var typeStr = config.EnableLyricsGeneration ? "Movie,Episode,Audio" : "Movie,Episode";
+                var includeTypes = GetBaseItemKinds(typeStr);
                 var allItems = _libraryManager.GetItemList(new MediaBrowser.Controller.Entities.InternalItemsQuery
                 {
                     ParentId = library.Id,
@@ -106,7 +108,7 @@ namespace WhisperSubs.Api
                         Name = item.Name,
                         Type = item.GetType().Name,
                         Path = item.Path,
-                        HasSubtitles = item is Video video && video.HasSubtitles
+                        HasSubtitles = item is Video v ? v.HasSubtitles : CheckLyricsExist(item.Path)
                     })
                     .ToList();
 
@@ -141,18 +143,20 @@ namespace WhisperSubs.Api
                     return NotFound(new { error = "Item not found" });
                 }
 
-                if (!(item is Video video))
+                var config = Plugin.Instance.Configuration;
+                var isAudio = item is MediaBrowser.Controller.Entities.Audio.Audio;
+
+                if (!(item is Video) && !(isAudio && config.EnableLyricsGeneration))
                 {
-                    return BadRequest(new { error = "Item is not a video" });
+                    return BadRequest(new { error = "Item is not a supported media type" });
                 }
 
-                var config = Plugin.Instance.Configuration;
                 var targetLanguage = language ?? config.DefaultLanguage;
                 var queue = SubtitleQueueService.Instance;
 
-                queue.Enqueue(video, targetLanguage);
-                _logger.LogInformation("Queued subtitle generation for {ItemName} [{Language}]. Queue size: {Count}",
-                    item.Name, targetLanguage, queue.PriorityCount);
+                queue.Enqueue(item, targetLanguage);
+                _logger.LogInformation("Queued {Action} generation for {ItemName} [{Language}]. Queue size: {Count}",
+                    isAudio ? "lyrics" : "subtitle", item.Name, targetLanguage, queue.PriorityCount);
 
                 // Ensure the background drain worker is running
                 var manager = GetSubtitleManager();
@@ -165,7 +169,7 @@ namespace WhisperSubs.Api
 
                 return Accepted(new
                 {
-                    message = "Queued for subtitle generation",
+                    message = isAudio ? "Queued for lyrics generation" : "Queued for subtitle generation",
                     item = item.Name,
                     language = targetLanguage,
                     queueSize = queue.PriorityCount
@@ -369,6 +373,16 @@ namespace WhisperSubs.Api
             }
 
             return result.ToArray();
+        }
+
+        private static bool CheckLyricsExist(string? path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            var dir = System.IO.Path.GetDirectoryName(path);
+            var baseName = System.IO.Path.GetFileNameWithoutExtension(path);
+            if (dir == null) return false;
+            try { return System.IO.Directory.GetFiles(dir, baseName + ".*.lrc").Length > 0; }
+            catch { return false; }
         }
     }
 

@@ -117,6 +117,22 @@
                         </div>
                     </div>
 
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="chkEnableLyricsGeneration" name="EnableLyricsGeneration" />
+                            <span>Enable Lyrics Generation (Experimental)</span>
+                        </label>
+                        <div class="fieldDescription">
+                            When enabled, music libraries are included in scanning and audio tracks receive
+                            <code>.lrc</code> lyrics files generated via whisper transcription.
+                            Jellyfin automatically picks up <code>.lrc</code> files placed next to audio files.
+                            <br />
+                            <strong>Note:</strong> Whisper models are trained on speech, not singing.
+                            Lyrics accuracy varies widely &mdash; clean vocals with minimal instrumentation work best.
+                            Future whisper models may improve music transcription significantly.
+                        </div>
+                    </div>
+
                     <button is="emby-button" type="submit" class="raised button-submit block">
                         <span>Save</span>
                     </button>
@@ -142,7 +158,7 @@
                             <tr>
                                 <th style="text-align: left;">Name</th>
                                 <th style="text-align: left;">Type</th>
-                                <th style="text-align: center;">Subtitles</th>
+                                <th style="text-align: center;">Subs / Lyrics</th>
                                 <th style="text-align: left;">Language</th>
                                 <th style="text-align: right;">Actions</th>
                             </tr>
@@ -222,6 +238,7 @@
                             page.querySelector('#selectDefaultLanguage').value = config.DefaultLanguage || 'auto';
                             page.querySelector('#selectSubtitleMode').value = (config.SubtitleMode != null ? config.SubtitleMode : 0).toString();
                             page.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration || false;
+                            page.querySelector('#chkEnableLyricsGeneration').checked = config.EnableLyricsGeneration || false;
                         }
                         WhisperSubsConfig.loadModels();
                         WhisperSubsConfig.loadLibraries();
@@ -238,6 +255,7 @@
                         config.DefaultLanguage = page.querySelector('#selectDefaultLanguage').value;
                         config.SubtitleMode = parseInt(page.querySelector('#selectSubtitleMode').value, 10);
                         config.EnableAutoGeneration = page.querySelector('#chkEnableAutoGeneration').checked;
+                        config.EnableLyricsGeneration = page.querySelector('#chkEnableLyricsGeneration').checked;
                         ApiClient.updatePluginConfiguration(WhisperSubsConfig.pluginId, config).then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);
                             WhisperSubsConfig.loadModels();
@@ -392,7 +410,7 @@
                             var generateBtn = document.createElement('button');
                             generateBtn.setAttribute('is', 'emby-button');
                             generateBtn.className = 'raised';
-                            generateBtn.innerHTML = '<span>Generate</span>';
+                            generateBtn.innerHTML = item.Type === 'Audio' ? '<span>Generate Lyrics</span>' : '<span>Generate</span>';
                             generateBtn.onclick = (function (id, name) {
                                 return function () { WhisperSubsConfig.generateSubtitle(id, name); };
                             })(item.Id, item.Name);
