@@ -31,6 +31,13 @@ namespace WhisperSubs.Controller
         {
             if (item == null) throw new ArgumentNullException(nameof(item));
 
+            // Route audio items to lyrics generation
+            if (item is MediaBrowser.Controller.Entities.Audio.Audio)
+            {
+                await GenerateLyricsAsync(item, provider, language, cancellationToken);
+                return;
+            }
+
             var mediaPath = item.Path;
             if (string.IsNullOrEmpty(mediaPath) || !File.Exists(mediaPath))
             {
@@ -363,6 +370,124 @@ namespace WhisperSubs.Controller
                     _logger.LogWarning(ex, "Failed to cleanup temp directory: {Path}", tempDir);
                 }
             }
+        }
+
+        // ────────────────────────────────────────────────────────────
+        //  Lyrics (LRC) generation for Audio items
+        // ────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Generates LRC lyrics for an audio item by transcribing with whisper
+        /// and converting the SRT output to LRC format.
+        /// </summary>
+        private async Task GenerateLyricsAsync(BaseItem item, ISubtitleProvider provider, string language, CancellationToken cancellationToken)
+        {
+            var mediaPath = item.Path;
+            if (string.IsNullOrEmpty(mediaPath) || !File.Exists(mediaPath))
+            {
+                _logger.LogWarning("Media file not found for item {ItemName}", item.Name);
+                return;
+            }
+
+            // Resolve transcription language (use first detected or configured).
+            // Jellyfin expects a single track.lrc sidecar, not per-language files.
+            var languages = await ResolveLanguagesAsync(mediaPath, language, cancellationToken);
+            var transcriptionLang = languages.FirstOrDefault() ?? "auto";
+
+            await GenerateLyricsForTrackAsync(item, provider, transcriptionLang, mediaPath, cancellationToken);
+
+            await item.RefreshMetadata(cancellationToken);
+        }
+
+        private async Task GenerateLyricsForTrackAsync(
+            BaseItem item, ISubtitleProvider provider, string lang,
+            string mediaPath, CancellationToken cancellationToken)
+        {
+            var baseName = Path.GetFileNameWithoutExtension(mediaPath);
+            var dir = Path.GetDirectoryName(mediaPath)!;
+            // Jellyfin's LyricResolver expects track.lrc (matching the audio filename)
+            var lrcPath = Path.Combine(dir, $"{baseName}.lrc");
+
+            if (File.Exists(lrcPath))
+            {
+                _logger.LogInformation("Lyrics already exist for {ItemName}, skipping", item.Name);
+                return;
+            }
+
+            var tempAudioPath = Path.Combine(Path.GetTempPath(), $"{item.Id}_{Guid.NewGuid()}.wav");
+            _logger.LogInformation("Generating lyrics for {ItemName} [{Language}]", item.Name, lang);
+
+            try
+            {
+                await ExtractAudioAsync(mediaPath, tempAudioPath, lang, cancellationToken);
+                string srtContent = await provider.TranscribeAsync(tempAudioPath, lang, cancellationToken);
+                string lrcContent = ConvertSrtToLrc(srtContent, item.Name);
+
+                await File.WriteAllTextAsync(lrcPath, lrcContent, CancellationToken.None);
+                _logger.LogInformation("Saved lyrics to {LrcPath}", lrcPath);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Cancelled lyrics generation for {ItemName} [{Language}]", item.Name, lang);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating lyrics for {ItemName} [{Language}]", item.Name, lang);
+            }
+            finally
+            {
+                if (File.Exists(tempAudioPath))
+                {
+                    try { File.Delete(tempAudioPath); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete temp audio: {Path}", tempAudioPath); }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Converts SRT subtitle content to LRC lyrics format.
+        /// LRC uses [MM:SS.cc] timestamps (start only, no end timestamps).
+        /// </summary>
+        internal static string ConvertSrtToLrc(string srtContent, string? title = null)
+        {
+            var sb = new StringBuilder();
+
+            if (!string.IsNullOrEmpty(title))
+                sb.AppendLine($"[ti:{title}]");
+            sb.AppendLine("[by:WhisperSubs]");
+            sb.AppendLine();
+
+            var entries = Regex.Split(srtContent.Trim(), @"\r?\n\r?\n");
+            foreach (var entry in entries)
+            {
+                if (string.IsNullOrWhiteSpace(entry)) continue;
+
+                var lines = entry.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                if (lines.Length < 3) continue;
+
+                // Line 0: sequence number
+                // Line 1: timestamp (00:01:23,456 --> 00:01:25,789)
+                // Line 2+: text
+                var timestampMatch = Regex.Match(lines[1], @"(\d{2}):(\d{2}):(\d{2})[,.](\d{3})");
+                if (!timestampMatch.Success) continue;
+
+                int hours = int.Parse(timestampMatch.Groups[1].Value);
+                int minutes = int.Parse(timestampMatch.Groups[2].Value);
+                int seconds = int.Parse(timestampMatch.Groups[3].Value);
+                int millis = int.Parse(timestampMatch.Groups[4].Value);
+
+                int totalMinutes = hours * 60 + minutes;
+                int centiseconds = millis / 10;
+
+                var text = string.Join(" ", lines.Skip(2)).Trim();
+                if (!string.IsNullOrEmpty(text))
+                {
+                    sb.AppendLine($"[{totalMinutes:D2}:{seconds:D2}.{centiseconds:D2}]{text}");
+                }
+            }
+
+            return sb.ToString();
         }
 
         // ────────────────────────────────────────────────────────────
