@@ -352,8 +352,8 @@ See [ROADMAP.md](ROADMAP.md) for planned features and design details.
 
 ## Other Jellyfin Projects by GeiserX
 
-- [smart-covers](https://github.com/GeiserX/smart-covers) — Plugin for fallback cover extraction from PDF, EPUB, and audiobooks
-- [jellyfin-quality-gate](https://github.com/GeiserX/jellyfin-quality-gate) — Plugin to restrict users to specific media versions
+- [smart-covers](https://github.com/GeiserX/smart-covers) — Cover extraction for books, audiobooks, comics, magazines, and music libraries with online fallback
+- [quality-gate](https://github.com/GeiserX/quality-gate) — Restrict users to specific media versions based on configurable path-based policies
 - [jellyfin-encoder](https://github.com/GeiserX/jellyfin-encoder) — Automatic 720p HEVC/AV1 transcoding service
 - [jellyfin-telegram-channel-sync](https://github.com/GeiserX/jellyfin-telegram-channel-sync) — Sync Jellyfin access with Telegram channel membership
 
