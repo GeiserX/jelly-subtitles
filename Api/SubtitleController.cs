@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using WhisperSubs.Configuration;
 using WhisperSubs.Controller;
 using WhisperSubs.Providers;
+using WhisperSubs.Setup;
 using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
@@ -350,6 +351,124 @@ namespace WhisperSubs.Api
                 _logger.LogError(ex, "Error triggering subtitle generation task");
                 return StatusCode(500, new { error = ex.Message });
             }
+        }
+
+        // ── Setup endpoints ──────────────────────────────────────────────
+
+        private WhisperSetupService GetSetupService()
+        {
+            return new WhisperSetupService(
+                _loggerFactory.CreateLogger<WhisperSetupService>(),
+                Plugin.Instance.DataFolderPath);
+        }
+
+        /// <summary>
+        /// Returns whether whisper binary and model are configured and reachable.
+        /// </summary>
+        [HttpGet("Setup/Status")]
+        public ActionResult GetSetupStatus()
+        {
+            try
+            {
+                var status = GetSetupService().GetStatus();
+                return Ok(status);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking setup status");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Lists whisper models available for download from HuggingFace.
+        /// </summary>
+        [HttpGet("Setup/AvailableModels")]
+        public ActionResult GetDownloadableModels()
+        {
+            return Ok(ModelCatalog.Models.Select(m => new
+            {
+                m.FileName,
+                m.DisplayName,
+                m.SizeMB,
+                m.IsRecommended,
+                m.Description
+            }));
+        }
+
+        /// <summary>
+        /// Downloads a whisper model from HuggingFace. Returns 202 immediately;
+        /// poll GET Setup/Progress for status.
+        /// </summary>
+        [HttpPost("Setup/DownloadModel")]
+        public ActionResult DownloadModel([FromQuery] string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                return BadRequest(new { error = "Model name is required." });
+
+            var valid = ModelCatalog.Models.Any(m =>
+                string.Equals(m.FileName, name, StringComparison.OrdinalIgnoreCase));
+            if (!valid)
+                return BadRequest(new { error = $"Unknown model: {name}" });
+
+            var service = GetSetupService();
+
+            _ = Task.Run(async () =>
+            {
+                try { await service.DownloadModelAsync(name, CancellationToken.None); }
+                catch (Exception ex) { _logger.LogError(ex, "Background model download failed"); }
+            });
+
+            return Accepted(new { message = $"Download of {name} started." });
+        }
+
+        /// <summary>
+        /// Lists available binary variants (CPU, CUDA, Vulkan).
+        /// </summary>
+        [HttpGet("Setup/BinaryVariants")]
+        public ActionResult GetBinaryVariants()
+        {
+            return Ok(BinaryCatalog.Variants.Select(v => new
+            {
+                v.Id,
+                v.DisplayName,
+                v.Description,
+                v.IsDefault
+            }));
+        }
+
+        /// <summary>
+        /// Downloads the whisper-cli binary for the current platform from the
+        /// whisper-subs GitHub release. Returns 202 immediately.
+        /// </summary>
+        /// <param name="variant">Binary variant: cpu (default), cuda12, or vulkan.</param>
+        [HttpPost("Setup/DownloadBinary")]
+        public ActionResult DownloadBinary([FromQuery] string variant = "cpu")
+        {
+            var valid = BinaryCatalog.Variants.Any(v =>
+                string.Equals(v.Id, variant, StringComparison.OrdinalIgnoreCase));
+            if (!valid)
+                return BadRequest(new { error = $"Unknown variant: {variant}. Use cpu, cuda12, or vulkan." });
+
+            var service = GetSetupService();
+
+            _ = Task.Run(async () =>
+            {
+                try { await service.DownloadBinaryAsync(variant, CancellationToken.None); }
+                catch (Exception ex) { _logger.LogError(ex, "Background binary download failed"); }
+            });
+
+            return Accepted(new { message = $"Binary download started (variant: {variant})." });
+        }
+
+        /// <summary>
+        /// Returns the current download progress (model or binary).
+        /// </summary>
+        [HttpGet("Setup/Progress")]
+        public ActionResult GetSetupProgress()
+        {
+            var p = WhisperSetupService.CurrentProgress;
+            return Ok(p);
         }
 
         private BaseItemKind[] GetBaseItemKinds(string input)
