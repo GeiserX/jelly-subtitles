@@ -92,7 +92,7 @@ jobs:
       image: rocm/dev-ubuntu-22.04:6.1.2
     steps:
       - name: Install build dependencies
-        run: apt-get update && apt-get install -y cmake g++ make git
+        run: apt-get update && apt-get install -y cmake g++ make git rocblas-dev hipblas-dev
 
       - name: Clone whisper.cpp
         run: git clone --depth 1 --branch v1.8.4 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper
