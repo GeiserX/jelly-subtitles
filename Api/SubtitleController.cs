@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using WhisperSubs.Configuration;
 using WhisperSubs.Controller;
 using WhisperSubs.Providers;
+using WhisperSubs.Setup;
 using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
@@ -350,6 +351,144 @@ namespace WhisperSubs.Api
                 _logger.LogError(ex, "Error triggering subtitle generation task");
                 return StatusCode(500, new { error = ex.Message });
             }
+        }
+
+        // ── Setup endpoints ──────────────────────────────────────────────
+
+        private WhisperSetupService GetSetupService()
+        {
+            return new WhisperSetupService(
+                _loggerFactory.CreateLogger<WhisperSetupService>(),
+                Plugin.Instance.DataFolderPath);
+        }
+
+        /// <summary>
+        /// Returns whether whisper binary and model are configured and reachable.
+        /// </summary>
+        [HttpGet("Setup/Status")]
+        [Authorize(Policy = "RequiresElevation")]
+        public ActionResult GetSetupStatus()
+        {
+            try
+            {
+                var status = GetSetupService().GetStatus();
+                return Ok(status);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking setup status");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Lists whisper models available for download from HuggingFace.
+        /// </summary>
+        [HttpGet("Setup/AvailableModels")]
+        [Authorize(Policy = "RequiresElevation")]
+        public ActionResult GetDownloadableModels()
+        {
+            return Ok(ModelCatalog.Models.Select(m => new
+            {
+                m.FileName,
+                m.DisplayName,
+                m.SizeMB,
+                m.IsRecommended,
+                m.Description
+            }));
+        }
+
+        /// <summary>
+        /// Downloads a whisper model from HuggingFace. Returns 202 immediately;
+        /// poll GET Setup/Progress for status.
+        /// </summary>
+        [HttpPost("Setup/DownloadModel")]
+        [Authorize(Policy = "RequiresElevation")]
+        public ActionResult DownloadModel([FromQuery] string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                return BadRequest(new { error = "Model name is required." });
+
+            var catalogEntry = ModelCatalog.Models.FirstOrDefault(m =>
+                string.Equals(m.FileName, name, StringComparison.OrdinalIgnoreCase));
+            if (catalogEntry == null)
+                return BadRequest(new { error = $"Unknown model: {name}" });
+
+            var canonicalName = catalogEntry.FileName;
+
+            if (!WhisperSetupService.TryAcquire("model", $"Starting download of {canonicalName}..."))
+                return Conflict(new { error = "A download is already in progress." });
+
+            var service = GetSetupService();
+
+            _ = Task.Run(async () =>
+            {
+                try { await service.DownloadModelAsync(canonicalName, CancellationToken.None); }
+                catch (Exception ex) { _logger.LogError(ex, "Background model download failed"); }
+            });
+
+            return Accepted(new { message = $"Download of {canonicalName} started." });
+        }
+
+        /// <summary>
+        /// Lists available binary variants (CPU, CUDA, Vulkan).
+        /// </summary>
+        [HttpGet("Setup/BinaryVariants")]
+        [Authorize(Policy = "RequiresElevation")]
+        public ActionResult GetBinaryVariants()
+        {
+            var platform = WhisperSetupService.GetPlatformIdentifier();
+            var variants = BinaryCatalog.GetAvailableVariants(platform);
+            return Ok(variants.Select(v => new
+            {
+                v.Id,
+                v.DisplayName,
+                v.Description,
+                v.IsDefault,
+                Platform = platform
+            }));
+        }
+
+        /// <summary>
+        /// Downloads the whisper-cli binary for the current platform from the
+        /// whisper-subs GitHub release. Returns 202 immediately.
+        /// </summary>
+        /// <param name="variant">Binary variant: cpu (default), cuda12, or vulkan.</param>
+        [HttpPost("Setup/DownloadBinary")]
+        [Authorize(Policy = "RequiresElevation")]
+        public ActionResult DownloadBinary([FromQuery] string variant = "cpu")
+        {
+            var platform = WhisperSetupService.GetPlatformIdentifier();
+            var available = BinaryCatalog.GetAvailableVariants(platform);
+            var matchedVariant = available.FirstOrDefault(v => string.Equals(v.Id, variant, StringComparison.OrdinalIgnoreCase));
+            if (matchedVariant == null)
+                return BadRequest(new { error = $"No prebuilt binary for variant '{variant}' on {platform}. Prebuilt binaries are only available for Linux." });
+
+            var canonicalVariant = matchedVariant.Id;
+
+            if (!WhisperSetupService.TryAcquire("binary", $"Starting whisper-cli ({canonicalVariant}) download..."))
+                return Conflict(new { error = "A download is already in progress." });
+
+            var service = GetSetupService();
+
+            _ = Task.Run(async () =>
+            {
+                try { await service.DownloadBinaryAsync(canonicalVariant, CancellationToken.None); }
+                catch (Exception ex) { _logger.LogError(ex, "Background binary download failed"); }
+            });
+
+            return Accepted(new { message = $"Binary download started (variant: {canonicalVariant})." });
+        }
+
+        /// <summary>
+        /// Returns the current download progress (model or binary).
+        /// </summary>
+        [HttpGet("Setup/Progress")]
+        [Authorize(Policy = "RequiresElevation")]
+        public ActionResult GetSetupProgress()
+        {
+            var p = WhisperSetupService.CurrentProgress;
+            return Ok(p);
         }
 
         private BaseItemKind[] GetBaseItemKinds(string input)
