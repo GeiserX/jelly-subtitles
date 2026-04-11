@@ -62,12 +62,19 @@ jobs:
         with:
           cuda: '12.6.3'
           method: 'network'
-          sub-packages: '["nvcc", "cudart-dev", "cublas-dev"]'
+          sub-packages: '["nvcc", "cudart-dev"]'
+
+      - name: Install cuBLAS
+        if: matrix.pre_install == 'cuda'
+        run: sudo apt-get install -y libcublas-dev-12-6
 
       - name: Install Vulkan SDK
         if: matrix.pre_install == 'vulkan'
         run: |
-          sudo apt-get install -y libvulkan-dev glslang-dev glslang-tools shaderc
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc > /dev/null
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list https://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list
+          sudo apt-get update
+          sudo apt-get install -y vulkan-sdk
 
       - name: Install ROCm
         if: matrix.pre_install == 'rocm'
@@ -76,6 +83,7 @@ jobs:
           echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.3 noble main" | sudo tee /etc/apt/sources.list.d/rocm.list
           sudo apt-get update
           sudo apt-get install -y hip-dev rocblas-dev hipblas-dev
+          echo "/opt/rocm/bin" >> $GITHUB_PATH
 
       - name: Clone whisper.cpp
         run: git clone --depth 1 --branch v1.8.4 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper
