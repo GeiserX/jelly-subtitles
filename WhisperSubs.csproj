@@ -23,4 +23,14 @@
     <EmbeddedResource Include="Web\configPage.html" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="WhisperSubs.Tests\**" />
+    <EmbeddedResource Remove="WhisperSubs.Tests\**" />
+    <None Remove="WhisperSubs.Tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="WhisperSubs.Tests" />
+  </ItemGroup>
+
 </Project>
