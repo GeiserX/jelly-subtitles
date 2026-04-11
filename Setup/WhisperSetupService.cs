@@ -189,6 +189,14 @@ namespace WhisperSubs.Setup
                 await fileStream.FlushAsync(cancellationToken);
                 fileStream.Close();
 
+                // Reject truncated downloads
+                if (totalBytes > 0 && downloaded != totalBytes)
+                {
+                    if (File.Exists(tempPath)) File.Delete(tempPath);
+                    throw new InvalidOperationException(
+                        $"Download incomplete: received {downloaded} of {totalBytes} bytes.");
+                }
+
                 if (File.Exists(destPath)) File.Delete(destPath);
                 File.Move(tempPath, destPath);
 
@@ -355,6 +363,14 @@ namespace WhisperSubs.Setup
 
                 await fileStream.FlushAsync(cancellationToken);
                 fileStream.Close();
+
+                // Reject truncated downloads
+                if (totalBytes > 0 && downloaded != totalBytes)
+                {
+                    if (File.Exists(tempPath)) File.Delete(tempPath);
+                    throw new InvalidOperationException(
+                        $"Download incomplete: received {downloaded} of {totalBytes} bytes.");
+                }
 
                 if (File.Exists(BinaryPath)) File.Delete(BinaryPath);
                 File.Move(tempPath, BinaryPath);

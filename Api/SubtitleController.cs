@@ -366,6 +366,7 @@ namespace WhisperSubs.Api
         /// Returns whether whisper binary and model are configured and reachable.
         /// </summary>
         [HttpGet("Setup/Status")]
+        [Authorize(Policy = "RequiresElevation")]
         public ActionResult GetSetupStatus()
         {
             try
@@ -384,6 +385,7 @@ namespace WhisperSubs.Api
         /// Lists whisper models available for download from HuggingFace.
         /// </summary>
         [HttpGet("Setup/AvailableModels")]
+        [Authorize(Policy = "RequiresElevation")]
         public ActionResult GetDownloadableModels()
         {
             return Ok(ModelCatalog.Models.Select(m => new
@@ -401,34 +403,38 @@ namespace WhisperSubs.Api
         /// poll GET Setup/Progress for status.
         /// </summary>
         [HttpPost("Setup/DownloadModel")]
+        [Authorize(Policy = "RequiresElevation")]
         public ActionResult DownloadModel([FromQuery] string name)
         {
             if (string.IsNullOrEmpty(name))
                 return BadRequest(new { error = "Model name is required." });
 
-            var valid = ModelCatalog.Models.Any(m =>
+            var catalogEntry = ModelCatalog.Models.FirstOrDefault(m =>
                 string.Equals(m.FileName, name, StringComparison.OrdinalIgnoreCase));
-            if (!valid)
+            if (catalogEntry == null)
                 return BadRequest(new { error = $"Unknown model: {name}" });
 
-            if (!WhisperSetupService.TryAcquire("model", $"Starting download of {name}..."))
+            var canonicalName = catalogEntry.FileName;
+
+            if (!WhisperSetupService.TryAcquire("model", $"Starting download of {canonicalName}..."))
                 return Conflict(new { error = "A download is already in progress." });
 
             var service = GetSetupService();
 
             _ = Task.Run(async () =>
             {
-                try { await service.DownloadModelAsync(name, CancellationToken.None); }
+                try { await service.DownloadModelAsync(canonicalName, CancellationToken.None); }
                 catch (Exception ex) { _logger.LogError(ex, "Background model download failed"); }
             });
 
-            return Accepted(new { message = $"Download of {name} started." });
+            return Accepted(new { message = $"Download of {canonicalName} started." });
         }
 
         /// <summary>
         /// Lists available binary variants (CPU, CUDA, Vulkan).
         /// </summary>
         [HttpGet("Setup/BinaryVariants")]
+        [Authorize(Policy = "RequiresElevation")]
         public ActionResult GetBinaryVariants()
         {
             var platform = WhisperSetupService.GetPlatformIdentifier();
@@ -449,31 +455,36 @@ namespace WhisperSubs.Api
         /// </summary>
         /// <param name="variant">Binary variant: cpu (default), cuda12, or vulkan.</param>
         [HttpPost("Setup/DownloadBinary")]
+        [Authorize(Policy = "RequiresElevation")]
         public ActionResult DownloadBinary([FromQuery] string variant = "cpu")
         {
             var platform = WhisperSetupService.GetPlatformIdentifier();
             var available = BinaryCatalog.GetAvailableVariants(platform);
-            if (!available.Any(v => string.Equals(v.Id, variant, StringComparison.OrdinalIgnoreCase)))
+            var matchedVariant = available.FirstOrDefault(v => string.Equals(v.Id, variant, StringComparison.OrdinalIgnoreCase));
+            if (matchedVariant == null)
                 return BadRequest(new { error = $"No prebuilt binary for variant '{variant}' on {platform}. Prebuilt binaries are only available for Linux." });
 
-            if (!WhisperSetupService.TryAcquire("binary", $"Starting whisper-cli ({variant}) download..."))
+            var canonicalVariant = matchedVariant.Id;
+
+            if (!WhisperSetupService.TryAcquire("binary", $"Starting whisper-cli ({canonicalVariant}) download..."))
                 return Conflict(new { error = "A download is already in progress." });
 
             var service = GetSetupService();
 
             _ = Task.Run(async () =>
             {
-                try { await service.DownloadBinaryAsync(variant, CancellationToken.None); }
+                try { await service.DownloadBinaryAsync(canonicalVariant, CancellationToken.None); }
                 catch (Exception ex) { _logger.LogError(ex, "Background binary download failed"); }
             });
 
-            return Accepted(new { message = $"Binary download started (variant: {variant})." });
+            return Accepted(new { message = $"Binary download started (variant: {canonicalVariant})." });
         }
 
         /// <summary>
         /// Returns the current download progress (model or binary).
         /// </summary>
         [HttpGet("Setup/Progress")]
+        [Authorize(Policy = "RequiresElevation")]
         public ActionResult GetSetupProgress()
         {
             var p = WhisperSetupService.CurrentProgress;
