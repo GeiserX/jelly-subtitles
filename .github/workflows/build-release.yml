@@ -49,7 +49,7 @@ jobs:
             platform: linux-x64
             variant: rocm
             asset_name: whisper-cli-linux-x64-rocm
-            cmake_flags: "-DGGML_HIP=ON -DCMAKE_C_COMPILER=hipcc -DCMAKE_CXX_COMPILER=hipcc"
+            cmake_flags: "-DGGML_HIP=ON -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc"
             pre_install: "rocm"
     runs-on: ${{ matrix.os }}
     steps:
@@ -71,10 +71,7 @@ jobs:
       - name: Install Vulkan SDK
         if: matrix.pre_install == 'vulkan'
         run: |
-          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc > /dev/null
-          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list https://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list
-          sudo apt-get update
-          sudo apt-get install -y vulkan-sdk
+          sudo apt-get install -y glslc libvulkan-dev
 
       - name: Install ROCm
         if: matrix.pre_install == 'rocm'
