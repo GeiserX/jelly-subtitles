@@ -257,17 +257,27 @@
                             var binText = document.querySelector('#binaryStatusText');
                             var binBtn = document.querySelector('#btnDownloadBinary');
                             var binSel = document.querySelector('#selectBinaryVariant');
-                            if (s.BinaryFound) {
+                            if (s.BinaryFound && !s.BinaryFoundInPath) {
                                 binIcon.innerHTML = '&#9745;';
                                 binIcon.style.color = '#52B54B';
                                 binText.textContent = s.BinaryPath || 'found';
                                 binBtn.style.display = 'none';
                                 binSel.style.display = 'none';
+                            } else if (s.BinaryFoundInPath) {
+                                binIcon.innerHTML = '&#9745;';
+                                binIcon.style.color = '#CC7B19';
+                                binText.textContent = 'Found in PATH (CPU). Download a GPU-accelerated variant below:';
+                                binBtn.style.display = '';
+                                binBtn.disabled = false;
+                                binBtn.innerHTML = '<span>Download Binary</span>';
+                                binSel.style.display = '';
                             } else {
                                 binIcon.innerHTML = '&#9744;';
                                 binIcon.style.color = '#CC7B19';
                                 binText.textContent = 'Not found (' + s.Platform + ')';
                                 binBtn.style.display = '';
+                                binBtn.disabled = false;
+                                binBtn.innerHTML = '<span>Download Binary</span>';
                                 binSel.style.display = '';
                             }
 
@@ -304,17 +314,24 @@
                                 modIcon.style.color = '#CC7B19';
                                 modText.textContent = 'Not found';
                                 modBtn.style.display = '';
+                                modBtn.disabled = false;
+                                modBtn.innerHTML = '<span>Download Model</span>';
                                 modSel.style.display = '';
                             }
 
-                            // Hide quick-setup if both already done
+                            // Hide quick-setup if both already done; always reset disabled state
                             var qsBtn = document.querySelector('#btnQuickSetup');
+                            qsBtn.disabled = false;
                             if (s.BinaryFound && s.ModelFound) {
                                 qsBtn.style.display = 'none';
                             } else if (s.BinaryFound || s.ModelFound) {
+                                qsBtn.style.display = '';
                                 qsBtn.innerHTML = s.BinaryFound
                                     ? '<span>Download Model</span>'
                                     : '<span>Download Binary</span>';
+                            } else {
+                                qsBtn.style.display = '';
+                                qsBtn.innerHTML = '<span>Quick Setup (Download Both)</span>';
                             }
                         })
                         .catch(function (err) {
@@ -326,8 +343,22 @@
                     WhisperSubsConfig.ajaxGet(ApiClient.getUrl('Plugins/WhisperSubs/Setup/BinaryVariants'))
                         .then(function (variants) {
                             var select = document.querySelector('#selectBinaryVariant');
+                            var btn = document.querySelector('#btnDownloadBinary');
                             select.innerHTML = '';
-                            if (!variants || !Array.isArray(variants)) return;
+                            if (!variants || !Array.isArray(variants) || variants.length === 0) {
+                                var opt = document.createElement('option');
+                                opt.value = '';
+                                opt.textContent = 'No prebuilt binaries for this platform';
+                                select.appendChild(opt);
+                                select.disabled = true;
+                                btn.disabled = true;
+                                btn.title = 'Prebuilt binaries are only available for Linux. Install whisper-cli manually.';
+                                var hint = document.querySelector('#gpuDetectionHint');
+                                hint.textContent = 'Auto-download is only available for Linux. Please install whisper-cli manually and set the path below.';
+                                hint.style.color = '#CC7B19';
+                                return;
+                            }
+                            select.disabled = false;
                             variants.forEach(function (v) {
                                 var opt = document.createElement('option');
                                 opt.value = v.Id;
@@ -439,6 +470,8 @@
                                 if (p.Error) {
                                     text.style.color = '#CC7B19';
                                     WhisperSubsConfig.stopProgressPolling();
+                                    WhisperSubsConfig._quickSetupPhase = null;
+                                    WhisperSubsConfig.resetDownloadButtons();
                                     WhisperSubsConfig.checkSetupStatus();
                                     return;
                                 }
@@ -456,6 +489,7 @@
                                         return;
                                     }
                                     WhisperSubsConfig._quickSetupPhase = null;
+                                    WhisperSubsConfig.resetDownloadButtons();
                                     // Refresh everything — paths are auto-applied by the backend
                                     setTimeout(function () {
                                         WhisperSubsConfig.checkSetupStatus();
@@ -474,6 +508,15 @@
                         clearInterval(WhisperSubsConfig._progressPollTimer);
                         WhisperSubsConfig._progressPollTimer = null;
                     }
+                },
+
+                resetDownloadButtons: function () {
+                    var binBtn = document.querySelector('#btnDownloadBinary');
+                    var modBtn = document.querySelector('#btnDownloadModel');
+                    var qsBtn = document.querySelector('#btnQuickSetup');
+                    if (binBtn) { binBtn.disabled = false; binBtn.innerHTML = '<span>Download Binary</span>'; }
+                    if (modBtn) { modBtn.disabled = false; modBtn.innerHTML = '<span>Download Model</span>'; }
+                    if (qsBtn) { qsBtn.disabled = false; qsBtn.innerHTML = '<span>Quick Setup (Download Both)</span>'; }
                 },
 
                 languageOptions: [

@@ -1,7 +1,9 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -11,8 +13,10 @@ namespace WhisperSubs.Setup
     public class WhisperSetupService
     {
         private readonly ILogger _logger;
-        private readonly HttpClient _httpClient;
         private readonly string _dataPath;
+
+        // Shared HttpClient — reused across all requests to avoid socket exhaustion.
+        private static readonly HttpClient SharedHttpClient = CreateHttpClient();
 
         // Static progress tracking — polled by the API endpoint.
         private static string _currentOperation = "";
@@ -21,6 +25,13 @@ namespace WhisperSubs.Setup
         private static bool _isRunning;
         private static string? _error;
         private static readonly object _lock = new();
+
+        private static HttpClient CreateHttpClient()
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("WhisperSubs-Jellyfin-Plugin");
+            return client;
+        }
 
         public static DownloadProgress CurrentProgress
         {
@@ -40,12 +51,28 @@ namespace WhisperSubs.Setup
             }
         }
 
+        /// <summary>
+        /// Atomically acquires the download lock. Returns false if a download is already running.
+        /// Must be called (and succeed) before invoking DownloadModelAsync / DownloadBinaryAsync.
+        /// </summary>
+        public static bool TryAcquire(string operation, string initialMessage)
+        {
+            lock (_lock)
+            {
+                if (_isRunning) return false;
+                _isRunning = true;
+                _error = null;
+                _currentOperation = operation;
+                _progress = 0;
+                _progressMessage = initialMessage;
+                return true;
+            }
+        }
+
         public WhisperSetupService(ILogger logger, string dataPath)
         {
             _logger = logger;
             _dataPath = dataPath;
-            _httpClient = new HttpClient();
-            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("WhisperSubs-Jellyfin-Plugin");
         }
 
         public string WhisperDirectory => Path.Combine(_dataPath, "whisper");
@@ -74,11 +101,13 @@ namespace WhisperSubs.Setup
             var configBinaryValid = !string.IsNullOrEmpty(config.WhisperBinaryPath)
                                     && File.Exists(config.WhisperBinaryPath);
 
-            // Check for any model in the auto-download directory
+            // Check for any model in the auto-download directory (largest first for determinism)
             string? autoModelPath = null;
             if (Directory.Exists(ModelsDirectory))
             {
-                var bins = Directory.GetFiles(ModelsDirectory, "*.bin");
+                var bins = Directory.GetFiles(ModelsDirectory, "*.bin")
+                    .OrderByDescending(f => new FileInfo(f).Length)
+                    .ToArray();
                 if (bins.Length > 0) autoModelPath = bins[0];
             }
 
@@ -94,6 +123,7 @@ namespace WhisperSubs.Setup
             return new SetupStatus
             {
                 BinaryFound = binaryOk,
+                BinaryFoundInPath = inPath && !autoBinaryExists && !configBinaryValid,
                 BinaryPath = configBinaryValid ? config.WhisperBinaryPath
                            : autoBinaryExists ? BinaryPath
                            : inPath ? "whisper-cli (PATH)"
@@ -110,18 +140,11 @@ namespace WhisperSubs.Setup
         /// Downloads a whisper model from HuggingFace and saves it to the models directory.
         /// After download, automatically updates the plugin configuration.
         /// </summary>
+        /// <summary>
+        /// Downloads a whisper model. Caller must call TryAcquire("model", ...) first.
+        /// </summary>
         public async Task DownloadModelAsync(string modelFileName, CancellationToken cancellationToken)
         {
-            lock (_lock)
-            {
-                if (_isRunning) throw new InvalidOperationException("A download is already in progress.");
-                _isRunning = true;
-                _error = null;
-                _currentOperation = "model";
-                _progress = 0;
-                _progressMessage = $"Starting download of {modelFileName}...";
-            }
-
             try
             {
                 Directory.CreateDirectory(ModelsDirectory);
@@ -132,7 +155,7 @@ namespace WhisperSubs.Setup
 
                 _logger.LogInformation("Downloading model {Model} from {Url}", modelFileName, url);
 
-                using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                using var response = await SharedHttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 response.EnsureSuccessStatusCode();
 
                 var totalBytes = response.Content.Headers.ContentLength ?? -1;
@@ -169,6 +192,27 @@ namespace WhisperSubs.Setup
                 if (File.Exists(destPath)) File.Delete(destPath);
                 File.Move(tempPath, destPath);
 
+                // Verify downloaded file size against catalog
+                var catalogEntry = ModelCatalog.Models.FirstOrDefault(m =>
+                    string.Equals(m.FileName, modelFileName, StringComparison.OrdinalIgnoreCase));
+                if (catalogEntry != null)
+                {
+                    var actualSizeMB = new FileInfo(destPath).Length / (1024.0 * 1024.0);
+                    if (actualSizeMB < catalogEntry.SizeMB * 0.9)
+                    {
+                        File.Delete(destPath);
+                        throw new InvalidOperationException(
+                            $"Downloaded file is {actualSizeMB:F0} MB but expected ~{catalogEntry.SizeMB} MB. " +
+                            "The file may be corrupted or truncated.");
+                    }
+                    _logger.LogInformation("Model size verified: {Actual:F1} MB (expected ~{Expected} MB)",
+                        actualSizeMB, catalogEntry.SizeMB);
+                }
+
+                // Compute and log SHA256 for audit
+                var sha256 = ComputeSha256(destPath);
+                _logger.LogInformation("Model {Model} SHA256: {Hash}", modelFileName, sha256);
+
                 // Auto-apply to plugin config
                 var config = Plugin.Instance.Configuration;
                 config.WhisperModelPath = destPath;
@@ -177,7 +221,7 @@ namespace WhisperSubs.Setup
                 lock (_lock)
                 {
                     _progress = 100;
-                    _progressMessage = $"Model {modelFileName} downloaded and configured.";
+                    _progressMessage = $"Model {modelFileName} downloaded and verified.";
                 }
 
                 _logger.LogInformation("Model downloaded to {Path} and config updated", destPath);
@@ -260,27 +304,17 @@ namespace WhisperSubs.Setup
 
         /// <summary>
         /// Downloads the whisper-cli binary from the whisper-subs GitHub release
-        /// matching the current plugin version.
+        /// matching the current plugin version. Caller must call TryAcquire("binary", ...) first.
         /// </summary>
-        /// <param name="variant">Binary variant: "cpu", "cuda12", or "vulkan".</param>
+        /// <param name="variant">Binary variant: "cpu", "cuda12", "vulkan", or "rocm".</param>
         public async Task DownloadBinaryAsync(string variant, CancellationToken cancellationToken)
         {
-            lock (_lock)
-            {
-                if (_isRunning) throw new InvalidOperationException("A download is already in progress.");
-                _isRunning = true;
-                _error = null;
-                _currentOperation = "binary";
-                _progress = 0;
-                _progressMessage = $"Starting whisper-cli ({variant}) download...";
-            }
-
             try
             {
                 Directory.CreateDirectory(WhisperDirectory);
 
                 var platform = GetPlatformIdentifier();
-                var version = typeof(Plugin).Assembly.GetName().Version?.ToString(3) ?? "3.2.0";
+                var version = typeof(Plugin).Assembly.GetName().Version?.ToString() ?? "3.3.0.0";
                 var assetName = BinaryCatalog.GetAssetName(platform, variant);
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) assetName += ".exe";
 
@@ -288,7 +322,7 @@ namespace WhisperSubs.Setup
 
                 _logger.LogInformation("Downloading whisper-cli from {Url} for platform {Platform}", url, platform);
 
-                using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                using var response = await SharedHttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 response.EnsureSuccessStatusCode();
 
                 var totalBytes = response.Content.Headers.ContentLength ?? -1;
@@ -332,6 +366,10 @@ namespace WhisperSubs.Setup
                     chmod?.WaitForExit(5000);
                 }
 
+                // Compute and log SHA256 for audit
+                var sha256 = ComputeSha256(BinaryPath);
+                _logger.LogInformation("Binary {Variant} SHA256: {Hash}", variant, sha256);
+
                 // Auto-apply to plugin config
                 var config = Plugin.Instance.Configuration;
                 config.WhisperBinaryPath = BinaryPath;
@@ -340,7 +378,7 @@ namespace WhisperSubs.Setup
                 lock (_lock)
                 {
                     _progress = 100;
-                    _progressMessage = "whisper-cli downloaded and configured.";
+                    _progressMessage = "whisper-cli downloaded and verified.";
                 }
 
                 _logger.LogInformation("Binary downloaded to {Path} and config updated", BinaryPath);
@@ -359,6 +397,14 @@ namespace WhisperSubs.Setup
             {
                 lock (_lock) { _isRunning = false; }
             }
+        }
+
+        private static string ComputeSha256(string filePath)
+        {
+            using var sha = SHA256.Create();
+            using var stream = File.OpenRead(filePath);
+            var hash = sha.ComputeHash(stream);
+            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
         }
 
         private static bool IsWhisperInPath()
@@ -391,6 +437,7 @@ namespace WhisperSubs.Setup
     public class SetupStatus
     {
         public bool BinaryFound { get; set; }
+        public bool BinaryFoundInPath { get; set; }
         public string? BinaryPath { get; set; }
         public bool ModelFound { get; set; }
         public string? ModelPath { get; set; }

@@ -1,3 +1,6 @@
+using System;
+using System.Linq;
+
 namespace WhisperSubs.Setup
 {
     public static class BinaryCatalog
@@ -23,6 +26,20 @@ namespace WhisperSubs.Setup
             var name = $"whisper-cli-{platform}";
             if (variant != "cpu") name += $"-{variant}";
             return name;
+        }
+
+        /// <summary>
+        /// Returns only the variants that have prebuilt binaries for the given platform.
+        /// CI builds: linux-x64 (cpu, cuda12, vulkan, rocm), linux-arm64 (cpu only).
+        /// </summary>
+        public static BinaryVariant[] GetAvailableVariants(string platform)
+        {
+            return platform switch
+            {
+                "linux-x64" => Variants,
+                "linux-arm64" => Variants.Where(v => v.Id == "cpu").ToArray(),
+                _ => Array.Empty<BinaryVariant>()
+            };
         }
     }
 

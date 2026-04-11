@@ -411,6 +411,9 @@ namespace WhisperSubs.Api
             if (!valid)
                 return BadRequest(new { error = $"Unknown model: {name}" });
 
+            if (!WhisperSetupService.TryAcquire("model", $"Starting download of {name}..."))
+                return Conflict(new { error = "A download is already in progress." });
+
             var service = GetSetupService();
 
             _ = Task.Run(async () =>
@@ -428,12 +431,15 @@ namespace WhisperSubs.Api
         [HttpGet("Setup/BinaryVariants")]
         public ActionResult GetBinaryVariants()
         {
-            return Ok(BinaryCatalog.Variants.Select(v => new
+            var platform = WhisperSetupService.GetPlatformIdentifier();
+            var variants = BinaryCatalog.GetAvailableVariants(platform);
+            return Ok(variants.Select(v => new
             {
                 v.Id,
                 v.DisplayName,
                 v.Description,
-                v.IsDefault
+                v.IsDefault,
+                Platform = platform
             }));
         }
 
@@ -445,10 +451,13 @@ namespace WhisperSubs.Api
         [HttpPost("Setup/DownloadBinary")]
         public ActionResult DownloadBinary([FromQuery] string variant = "cpu")
         {
-            var valid = BinaryCatalog.Variants.Any(v =>
-                string.Equals(v.Id, variant, StringComparison.OrdinalIgnoreCase));
-            if (!valid)
-                return BadRequest(new { error = $"Unknown variant: {variant}. Use cpu, cuda12, or vulkan." });
+            var platform = WhisperSetupService.GetPlatformIdentifier();
+            var available = BinaryCatalog.GetAvailableVariants(platform);
+            if (!available.Any(v => string.Equals(v.Id, variant, StringComparison.OrdinalIgnoreCase)))
+                return BadRequest(new { error = $"No prebuilt binary for variant '{variant}' on {platform}. Prebuilt binaries are only available for Linux." });
+
+            if (!WhisperSetupService.TryAcquire("binary", $"Starting whisper-cli ({variant}) download..."))
+                return Conflict(new { error = "A download is already in progress." });
 
             var service = GetSetupService();
 
