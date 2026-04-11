@@ -4,7 +4,6 @@ namespace WhisperSubs.Configuration
 {
     public class PluginConfiguration : BasePluginConfiguration
     {
-        public string SelectedProvider { get; set; } = "Whisper";
         public string WhisperModelPath { get; set; } = "";
         public string WhisperBinaryPath { get; set; } = "";
         public bool EnableAutoGeneration { get; set; } = false;

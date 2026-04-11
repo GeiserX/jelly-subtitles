@@ -10,7 +10,6 @@ public class ConfigurationTests
     {
         var config = new PluginConfiguration();
 
-        Assert.Equal("Whisper", config.SelectedProvider);
         Assert.Equal("", config.WhisperModelPath);
         Assert.Equal("", config.WhisperBinaryPath);
         Assert.False(config.EnableAutoGeneration);

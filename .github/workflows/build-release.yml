@@ -180,8 +180,8 @@ jobs:
             {
               "guid": "97124bd9-c8cd-4a53-a213-e593aa3fef52",
               "name": "WhisperSubs",
-              "description": "Automated subtitle generation for Jellyfin using local AI models (Whisper, Parakeet, etc.)",
-              "overview": "Generate subtitles for your media library using local speech-to-text AI models. Supports Whisper, Parakeet, and custom command providers. All processing happens locally on your server.",
+              "description": "Automated subtitle generation for Jellyfin using local Whisper AI models.",
+              "overview": "Generate subtitles for your media library using local speech-to-text AI (whisper.cpp). Supports CPU and GPU-accelerated transcription. All processing happens locally on your server.",
               "owner": "GeiserX",
               "category": "Subtitles",
               "versions": [
