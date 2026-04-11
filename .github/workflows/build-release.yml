@@ -27,6 +27,9 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release --no-restore
 
+      - name: Test
+        run: dotnet test WhisperSubs.Tests/WhisperSubs.Tests.csproj --configuration Release --no-restore --verbosity normal
+
       - name: Get version from csproj
         id: version
         run: |
