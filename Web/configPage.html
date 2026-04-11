@@ -643,8 +643,8 @@
                         config.WhisperBinaryPath = page.querySelector('#txtWhisperBinaryPath').value;
                         config.WhisperModelPath = page.querySelector('#txtWhisperModelPath').value;
                         config.WhisperThreadCount = parseInt(page.querySelector('#txtWhisperThreadCount').value, 10) || 0;
-                        config.DefaultLanguage = page.querySelector('#selectDefaultLanguage').value;
-                        config.SubtitleMode = parseInt(page.querySelector('#selectSubtitleMode').value, 10);
+                        config.DefaultLanguage = page.querySelector('#selectDefaultLanguage').value || 'auto';
+                        config.SubtitleMode = parseInt(page.querySelector('#selectSubtitleMode').value, 10) || 0;
                         config.EnableAutoGeneration = page.querySelector('#chkEnableAutoGeneration').checked;
                         config.EnableLyricsGeneration = page.querySelector('#chkEnableLyricsGeneration').checked;
 

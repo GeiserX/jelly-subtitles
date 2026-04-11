@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using MediaBrowser.Model.Plugins;
 
 namespace WhisperSubs.Configuration
@@ -18,6 +19,7 @@ namespace WhisperSubs.Configuration
         /// <summary>
         /// Controls whether to generate full subtitles, forced-only subtitles, or both.
         /// </summary>
+        [JsonConverter(typeof(SubtitleModeConverter))]
         public SubtitleMode SubtitleMode { get; set; } = SubtitleMode.Full;
 
         /// <summary>

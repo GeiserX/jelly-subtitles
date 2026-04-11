@@ -1,3 +1,4 @@
+using System.Text.Json;
 using WhisperSubs.Configuration;
 using Xunit;
 
@@ -34,5 +35,20 @@ public class ConfigurationTests
     {
         var values = Enum.GetValues<SubtitleMode>();
         Assert.Equal(3, values.Length);
+    }
+
+    [Theory]
+    [InlineData("{\"SubtitleMode\": null}", SubtitleMode.Full)]
+    [InlineData("{\"SubtitleMode\": 0}", SubtitleMode.Full)]
+    [InlineData("{\"SubtitleMode\": 1}", SubtitleMode.ForcedOnly)]
+    [InlineData("{\"SubtitleMode\": 2}", SubtitleMode.FullAndForced)]
+    [InlineData("{\"SubtitleMode\": 99}", SubtitleMode.Full)]
+    [InlineData("{\"SubtitleMode\": -1}", SubtitleMode.Full)]
+    [InlineData("{\"SubtitleMode\": \"ForcedOnly\"}", SubtitleMode.ForcedOnly)]
+    public void SubtitleModeConverter_HandlesEdgeCases(string json, SubtitleMode expected)
+    {
+        var config = JsonSerializer.Deserialize<PluginConfiguration>(json);
+        Assert.NotNull(config);
+        Assert.Equal(expected, config!.SubtitleMode);
     }
 }
