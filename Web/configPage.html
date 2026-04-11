@@ -410,6 +410,10 @@
                         .catch(function (err) {
                             btn.disabled = false;
                             btn.innerHTML = '<span>Download Binary</span>';
+                            if (WhisperSubsConfig._quickSetupPhase) {
+                                WhisperSubsConfig._quickSetupPhase = null;
+                                WhisperSubsConfig.resetDownloadButtons();
+                            }
                             Dashboard.alert('Download failed: ' + (err.message || err));
                         });
                 },
@@ -425,6 +429,10 @@
                         .catch(function (err) {
                             btn.disabled = false;
                             btn.innerHTML = '<span>Download Model</span>';
+                            if (WhisperSubsConfig._quickSetupPhase) {
+                                WhisperSubsConfig._quickSetupPhase = null;
+                                WhisperSubsConfig.resetDownloadButtons();
+                            }
                             Dashboard.alert('Download failed: ' + (err.message || err));
                         });
                 },
@@ -490,12 +498,17 @@
                                     }
                                     WhisperSubsConfig._quickSetupPhase = null;
                                     WhisperSubsConfig.resetDownloadButtons();
-                                    // Refresh everything — paths are auto-applied by the backend
+                                    // Refresh setup status and updated config paths (not full loadConfiguration to avoid duplicate loadLibraries)
                                     setTimeout(function () {
                                         WhisperSubsConfig.checkSetupStatus();
-                                        // Reload the main config form to reflect new paths
-                                        var page = document.querySelector('[data-role="page"]');
-                                        WhisperSubsConfig.loadConfiguration(page);
+                                        WhisperSubsConfig.loadModels();
+                                        ApiClient.getPluginConfiguration(WhisperSubsConfig.pluginId).then(function (config) {
+                                            if (config) {
+                                                var page = document.querySelector('[data-role="page"]');
+                                                page.querySelector('#txtWhisperBinaryPath').value = config.WhisperBinaryPath || '';
+                                                page.querySelector('#txtWhisperModelPath').value = config.WhisperModelPath || '';
+                                            }
+                                        });
                                     }, 500);
                                 }
                             })

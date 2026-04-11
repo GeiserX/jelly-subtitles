@@ -221,7 +221,7 @@ namespace WhisperSubs.Setup
                 lock (_lock)
                 {
                     _progress = 100;
-                    _progressMessage = $"Model {modelFileName} downloaded and verified.";
+                    _progressMessage = $"Model {modelFileName} downloaded successfully.";
                 }
 
                 _logger.LogInformation("Model downloaded to {Path} and config updated", destPath);
@@ -378,7 +378,7 @@ namespace WhisperSubs.Setup
                 lock (_lock)
                 {
                     _progress = 100;
-                    _progressMessage = "whisper-cli downloaded and verified.";
+                    _progressMessage = "whisper-cli downloaded successfully.";
                 }
 
                 _logger.LogInformation("Binary downloaded to {Path} and config updated", BinaryPath);
