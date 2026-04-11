@@ -59,41 +59,9 @@
                 </div>
 
                 <form class="whisperSubsConfigurationForm">
-                    <div class="selectContainer">
-                        <label class="selectLabel" for="selectProvider">Subtitle Provider</label>
-                        <select is="emby-select" id="selectProvider" name="SelectedProvider">
-                            <option value="Whisper">Whisper (Local)</option>
-                            <option value="Parakeet">Parakeet (Local)</option>
-                            <option value="Custom">Custom Command</option>
-                        </select>
-                        <div class="fieldDescription">Select the AI provider to use for generating subtitles.</div>
-                    </div>
 
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="txtWhisperBinaryPath">Whisper Binary Path</label>
-                        <input type="text" id="txtWhisperBinaryPath" name="WhisperBinaryPath" class="emby-input" />
-                        <div class="fieldDescription">Absolute path to the whisper-cli binary (e.g., /opt/whisper/whisper-cli). Leave empty to search PATH.</div>
-                    </div>
-
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="txtWhisperModelPath">Whisper Model Path</label>
-                        <input type="text" id="txtWhisperModelPath" name="WhisperModelPath" class="emby-input" />
-                        <div class="fieldDescription">Absolute path to the Whisper model file. You can type a path or select from detected models below.</div>
-                    </div>
-
-                    <div class="selectContainer" id="modelPickerContainer" style="display:none;">
-                        <label class="selectLabel" for="selectModel">Detected Models</label>
-                        <select is="emby-select" id="selectModel">
-                            <option value="">Loading models...</option>
-                        </select>
-                        <div class="fieldDescription">Models found in the same directory as the configured model path. Selecting one updates the path above.</div>
-                    </div>
-
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="txtWhisperThreadCount">Whisper Thread Count</label>
-                        <input type="number" id="txtWhisperThreadCount" name="WhisperThreadCount" class="emby-input" min="0" max="64" step="1" />
-                        <div class="fieldDescription">Number of CPU threads for whisper inference. 0 = whisper default (4). Set to your CPU core count for faster transcription.</div>
-                    </div>
+                    <!-- ── Generation Defaults ───────────────────────── -->
+                    <h2>Generation Defaults</h2>
 
                     <div class="selectContainer">
                         <label class="selectLabel" for="selectDefaultLanguage">Default Language</label>
@@ -154,16 +122,26 @@
                         </div>
                     </div>
 
+                    <!-- ── Automation ─────────────────────────────────── -->
+                    <h2>Automation</h2>
+
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label>
                             <input is="emby-checkbox" type="checkbox" id="chkEnableAutoGeneration" name="EnableAutoGeneration" />
                             <span>Enable Auto-Generation</span>
                         </label>
                         <div class="fieldDescription">
-                            When enabled, the scheduled task scans selected libraries and generates subtitles
+                            When enabled, the scheduled task scans your libraries and generates subtitles
                             only for items that <strong>do not already have any subtitles</strong>.
                             Existing subtitles (embedded or external) are never overwritten.
                         </div>
+                    </div>
+
+                    <div id="librarySelectorContainer" style="margin:0 0 1em 1.8em;">
+                        <div class="fieldDescription" style="margin-bottom:0.5em;">
+                            Select which libraries to include in auto-generation. If none are selected, all libraries will be scanned.
+                        </div>
+                        <div id="libraryCheckboxes"></div>
                     </div>
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
@@ -178,11 +156,41 @@
                             <br />
                             <strong>Note:</strong> Whisper models are trained on speech, not singing.
                             Lyrics accuracy varies widely &mdash; clean vocals with minimal instrumentation work best.
-                            Future whisper models may improve music transcription significantly.
                         </div>
                     </div>
 
-                    <button is="emby-button" type="submit" class="raised button-submit block">
+                    <!-- ── Advanced / Manual Install ──────────────────── -->
+                    <details style="margin-top:1.5em;">
+                        <summary style="cursor:pointer; font-size:1.2em; font-weight:bold; padding:0.5em 0;">Advanced / Manual Install</summary>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtWhisperBinaryPath">Whisper Binary Path</label>
+                            <input type="text" id="txtWhisperBinaryPath" name="WhisperBinaryPath" class="emby-input" />
+                            <div class="fieldDescription">Absolute path to the whisper-cli binary (e.g., /opt/whisper/whisper-cli). Leave empty to search PATH.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtWhisperModelPath">Whisper Model Path</label>
+                            <input type="text" id="txtWhisperModelPath" name="WhisperModelPath" class="emby-input" />
+                            <div class="fieldDescription">Absolute path to the Whisper model file. You can type a path or select from detected models below.</div>
+                        </div>
+
+                        <div class="selectContainer" id="modelPickerContainer" style="display:none;">
+                            <label class="selectLabel" for="selectModel">Detected Models</label>
+                            <select is="emby-select" id="selectModel">
+                                <option value="">Loading models...</option>
+                            </select>
+                            <div class="fieldDescription">Models found in the same directory as the configured model path. Selecting one updates the path above.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtWhisperThreadCount">Whisper Thread Count</label>
+                            <input type="number" id="txtWhisperThreadCount" name="WhisperThreadCount" class="emby-input" min="0" max="64" step="1" />
+                            <div class="fieldDescription">Number of CPU threads for whisper inference. 0 = whisper default (4). Set to your CPU core count for faster transcription.</div>
+                        </div>
+                    </details>
+
+                    <button is="emby-button" type="submit" class="raised button-submit block" style="margin-top:1.5em;">
                         <span>Save</span>
                     </button>
                 </form>
@@ -243,7 +251,6 @@
                     WhisperSubsConfig.ajaxGet(ApiClient.getUrl('Plugins/WhisperSubs/Setup/Status'))
                         .then(function (s) {
                             var banner = document.querySelector('#setupBanner');
-                            // Always populate dropdowns
                             WhisperSubsConfig.loadDownloadableModels();
                             WhisperSubsConfig.loadBinaryVariants(s.Gpu);
 
@@ -281,7 +288,6 @@
                                 binSel.style.display = '';
                             }
 
-                            // GPU detection hint
                             var hint = document.querySelector('#gpuDetectionHint');
                             if (s.Gpu) {
                                 if (s.Gpu.HasNvidia) {
@@ -319,7 +325,6 @@
                                 modSel.style.display = '';
                             }
 
-                            // Hide quick-setup if both already done; always reset disabled state
                             var qsBtn = document.querySelector('#btnQuickSetup');
                             qsBtn.disabled = false;
                             if (s.BinaryFound && s.ModelFound) {
@@ -365,7 +370,6 @@
                                 opt.textContent = v.DisplayName;
                                 select.appendChild(opt);
                             });
-                            // Auto-select recommended variant based on GPU detection
                             if (gpuInfo && gpuInfo.RecommendedVariant) {
                                 select.value = gpuInfo.RecommendedVariant;
                             }
@@ -391,7 +395,6 @@
                                 if (m.IsRecommended) opt.textContent += ' \u2605';
                                 select.appendChild(opt);
                             });
-                            // Pre-select recommended
                             var rec = models.find(function (m) { return m.IsRecommended; });
                             if (rec) select.value = rec.FileName;
                         })
@@ -441,7 +444,6 @@
                     var btn = document.querySelector('#btnQuickSetup');
                     btn.disabled = true;
                     btn.innerHTML = '<span>Setting up...</span>';
-                    // Check what's needed, then chain downloads
                     WhisperSubsConfig.ajaxGet(ApiClient.getUrl('Plugins/WhisperSubs/Setup/Status'))
                         .then(function (s) {
                             if (!s.BinaryFound) {
@@ -486,7 +488,6 @@
 
                                 if (!p.IsRunning && p.Percent >= 100) {
                                     WhisperSubsConfig.stopProgressPolling();
-                                    // If quick-setup, chain the next download
                                     if (WhisperSubsConfig._quickSetupPhase === 'binary-then-model') {
                                         WhisperSubsConfig._quickSetupPhase = 'model-only';
                                         bar.style.width = '0%';
@@ -498,7 +499,6 @@
                                     }
                                     WhisperSubsConfig._quickSetupPhase = null;
                                     WhisperSubsConfig.resetDownloadButtons();
-                                    // Refresh setup status and updated config paths (not full loadConfiguration to avoid duplicate loadLibraries)
                                     setTimeout(function () {
                                         WhisperSubsConfig.checkSetupStatus();
                                         WhisperSubsConfig.loadModels();
@@ -532,6 +532,7 @@
                     if (qsBtn) { qsBtn.disabled = false; qsBtn.innerHTML = '<span>Quick Setup (Download Both)</span>'; }
                 },
 
+                // Full language list — matches DefaultLanguage selector exactly
                 languageOptions: [
                     { value: 'auto', label: 'Auto-detect' },
                     { value: 'en', label: 'English' },
@@ -545,14 +546,29 @@
                     { value: 'zh', label: 'Chinese' },
                     { value: 'ko', label: 'Korean' },
                     { value: 'ar', label: 'Arabic' },
+                    { value: 'hi', label: 'Hindi' },
                     { value: 'nl', label: 'Dutch' },
                     { value: 'pl', label: 'Polish' },
                     { value: 'tr', label: 'Turkish' },
-                    { value: 'sv', label: 'Swedish' }
+                    { value: 'sv', label: 'Swedish' },
+                    { value: 'da', label: 'Danish' },
+                    { value: 'fi', label: 'Finnish' },
+                    { value: 'no', label: 'Norwegian' },
+                    { value: 'cs', label: 'Czech' },
+                    { value: 'ro', label: 'Romanian' },
+                    { value: 'hu', label: 'Hungarian' },
+                    { value: 'el', label: 'Greek' },
+                    { value: 'he', label: 'Hebrew' },
+                    { value: 'th', label: 'Thai' },
+                    { value: 'uk', label: 'Ukrainian' },
+                    { value: 'vi', label: 'Vietnamese' },
+                    { value: 'id', label: 'Indonesian' },
+                    { value: 'ca', label: 'Catalan' },
+                    { value: 'eu', label: 'Basque' },
+                    { value: 'gl', label: 'Galician' }
                 ],
 
                 getAuthHeader: function () {
-                    // Extract token from multiple possible sources
                     var token = '';
                     try { token = ApiClient.accessToken(); } catch(e) {}
                     if (!token) try { token = ApiClient._serverInfo && ApiClient._serverInfo.AccessToken; } catch(e) {}
@@ -561,23 +577,52 @@
                 },
 
                 ajaxGet: function (url) {
-                    console.log('WhisperSubs: fetching', url);
                     return fetch(url, { headers: WhisperSubsConfig.getAuthHeader() })
                         .then(function (resp) {
-                            console.log('WhisperSubs: response status', resp.status);
                             if (!resp.ok) throw new Error('HTTP ' + resp.status);
                             return resp.json();
-                        })
-                        .then(function (data) {
-                            console.log('WhisperSubs: parsed data', data);
-                            return data;
                         });
                 },
+
+                // ── Library selector for auto-generation scope ───────────
+
+                loadLibrarySelector: function (enabledIds) {
+                    WhisperSubsConfig.ajaxGet(ApiClient.getUrl('Plugins/WhisperSubs/Libraries'))
+                        .then(function (libraries) {
+                            var container = document.querySelector('#libraryCheckboxes');
+                            container.innerHTML = '';
+                            if (!libraries || !Array.isArray(libraries) || libraries.length === 0) return;
+                            libraries.forEach(function (lib) {
+                                var div = document.createElement('div');
+                                div.className = 'checkboxContainer';
+                                div.style.padding = '0.2em 0';
+                                var label = document.createElement('label');
+                                var checkbox = document.createElement('input');
+                                checkbox.setAttribute('is', 'emby-checkbox');
+                                checkbox.type = 'checkbox';
+                                checkbox.value = lib.Id;
+                                checkbox.className = 'chkLibrary';
+                                if (enabledIds && enabledIds.indexOf(lib.Id) >= 0) {
+                                    checkbox.checked = true;
+                                }
+                                label.appendChild(checkbox);
+                                var span = document.createElement('span');
+                                span.textContent = lib.Name;
+                                label.appendChild(span);
+                                div.appendChild(label);
+                                container.appendChild(div);
+                            });
+                        })
+                        .catch(function (err) {
+                            console.error('WhisperSubs: error loading library selector', err);
+                        });
+                },
+
+                // ── Config load / save ───────────────────────────────────
 
                 loadConfiguration: function (page) {
                     ApiClient.getPluginConfiguration(WhisperSubsConfig.pluginId).then(function (config) {
                         if (config) {
-                            page.querySelector('#selectProvider').value = config.SelectedProvider || 'Whisper';
                             page.querySelector('#txtWhisperBinaryPath').value = config.WhisperBinaryPath || '';
                             page.querySelector('#txtWhisperModelPath').value = config.WhisperModelPath || '';
                             page.querySelector('#txtWhisperThreadCount').value = (config.WhisperThreadCount || 0).toString();
@@ -588,13 +633,13 @@
                         }
                         WhisperSubsConfig.loadModels();
                         WhisperSubsConfig.loadLibraries();
+                        WhisperSubsConfig.loadLibrarySelector(config ? config.EnabledLibraries || [] : []);
                     });
                 },
 
                 saveConfiguration: function (page) {
                     ApiClient.getPluginConfiguration(WhisperSubsConfig.pluginId).then(function (config) {
                         var wasAutoGenEnabled = config.EnableAutoGeneration;
-                        config.SelectedProvider = page.querySelector('#selectProvider').value;
                         config.WhisperBinaryPath = page.querySelector('#txtWhisperBinaryPath').value;
                         config.WhisperModelPath = page.querySelector('#txtWhisperModelPath').value;
                         config.WhisperThreadCount = parseInt(page.querySelector('#txtWhisperThreadCount').value, 10) || 0;
@@ -602,19 +647,24 @@
                         config.SubtitleMode = parseInt(page.querySelector('#selectSubtitleMode').value, 10);
                         config.EnableAutoGeneration = page.querySelector('#chkEnableAutoGeneration').checked;
                         config.EnableLyricsGeneration = page.querySelector('#chkEnableLyricsGeneration').checked;
+
+                        // Collect enabled libraries from checkboxes
+                        var libraryCheckboxes = page.querySelectorAll('.chkLibrary');
+                        config.EnabledLibraries = [];
+                        libraryCheckboxes.forEach(function (cb) {
+                            if (cb.checked) config.EnabledLibraries.push(cb.value);
+                        });
+
                         ApiClient.updatePluginConfiguration(WhisperSubsConfig.pluginId, config).then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);
                             WhisperSubsConfig.loadModels();
-                            // If auto-generation was just enabled, trigger the task immediately
                             if (config.EnableAutoGeneration && !wasAutoGenEnabled) {
                                 ApiClient.ajax({
                                     type: 'POST',
                                     url: ApiClient.getUrl('Plugins/WhisperSubs/RunTask')
                                 }).then(function () {
                                     Dashboard.alert('Subtitle generation task started.');
-                                }).catch(function () {
-                                    // Task may already be running, that's fine
-                                });
+                                }).catch(function () {});
                             }
                         });
                     });
@@ -650,7 +700,6 @@
                             select.appendChild(opt);
                         });
 
-                        // Select the current model
                         if (currentPath) {
                             select.value = currentPath;
                         }
@@ -666,10 +715,7 @@
                     ).then(function (libraries) {
                         var select = document.querySelector('#selectLibrary');
                         select.innerHTML = '<option value="">Select a Library...</option>';
-                        if (!libraries || !Array.isArray(libraries)) {
-                            console.error('WhisperSubs: unexpected libraries response', libraries);
-                            return;
-                        }
+                        if (!libraries || !Array.isArray(libraries)) return;
                         libraries.forEach(function (lib) {
                             var option = document.createElement('option');
                             option.value = lib.Id;
@@ -758,7 +804,6 @@
                             generateBtn.className = 'raised';
                             var isAudioItem = item.Type === 'Audio';
                             generateBtn.innerHTML = isAudioItem ? '<span>Generate Lyrics</span>' : '<span>Generate</span>';
-                            // Hide lyrics button for Audio items that already have .lrc files
                             if (isAudioItem && item.HasSubtitles) {
                                 generateBtn.disabled = true;
                                 generateBtn.innerHTML = '<span>Lyrics exist</span>';
@@ -777,7 +822,6 @@
                             tbody.appendChild(row);
                         });
 
-                        // Update pagination controls
                         var currentPage = Math.floor(startIndex / WhisperSubsConfig.pageSize) + 1;
                         var totalPages = Math.ceil(totalCount / WhisperSubsConfig.pageSize);
 
