@@ -296,9 +296,12 @@
                                 } else if (s.Gpu.HasAmdGpu) {
                                     hint.textContent = 'AMD GPU detected — ROCm variant recommended for GPU-accelerated transcription.';
                                     hint.style.color = '#52B54B';
-                                } else if (s.Gpu.HasRenderDevice) {
+                                } else if (s.Gpu.HasRenderDevice && s.Gpu.HasVulkanLibrary) {
                                     hint.textContent = 'GPU render device detected — Vulkan variant recommended.';
                                     hint.style.color = '#52B54B';
+                                } else if (s.Gpu.HasRenderDevice && !s.Gpu.HasVulkanLibrary) {
+                                    hint.textContent = 'GPU detected but Vulkan library (libvulkan.so.1) is missing in this container. CPU variant selected. To use Vulkan, install libvulkan1 in your Docker image.';
+                                    hint.style.color = '#CC7B19';
                                 } else {
                                     hint.textContent = 'No GPU detected. CPU variant selected (works on any system).';
                                     hint.style.color = '';
