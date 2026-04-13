@@ -441,6 +441,10 @@ namespace WhisperSubs.Setup
                     });
                     if (p != null)
                     {
+                        // Drain redirected streams to avoid deadlock
+                        p.StandardOutput.ReadToEnd();
+                        p.StandardError.ReadToEnd();
+
                         if (!p.WaitForExit(5000))
                         {
                             try { p.Kill(); } catch { }
