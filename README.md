@@ -136,7 +136,7 @@ whisper.cpp supports GPU offloading via **Vulkan** (Intel, AMD, and some NVIDIA 
 > | Backend | Device | Required library | Install command (Debian/Ubuntu) |
 > |---------|--------|------------------|---------------------------------|
 > | **CUDA** | `/dev/nvidia0` | `libcuda.so.1` | `nvidia-container-toolkit` (host) |
-> | **Vulkan** | `/dev/dri` | `libvulkan.so.1` | `apt install libvulkan1 mesa-vulkan-drivers` |
+> | **Vulkan** | `/dev/dri` | `libvulkan.so.1` + ICD JSON | `apt install libvulkan1 mesa-vulkan-drivers` (also needs `/usr/share/vulkan/icd.d/*.json`) |
 > | **ROCm** | `/dev/kfd` | `libamdhip64.so` | `apt install rocm-hip-runtime` |
 
 ### Vulkan (Intel / AMD)

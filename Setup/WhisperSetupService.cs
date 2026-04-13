@@ -434,21 +434,26 @@ namespace WhisperSubs.Setup
                     }
                 }
 
-                // Auto-apply to plugin config
-                var config = Plugin.Instance.Configuration;
-                config.WhisperBinaryPath = BinaryPath;
-                Plugin.Instance.SaveConfiguration();
-
                 if (validationError == null)
                 {
+                    // Only auto-apply to config when the binary actually works —
+                    // don't overwrite a working config with a known-bad binary.
+                    var config = Plugin.Instance.Configuration;
+                    config.WhisperBinaryPath = BinaryPath;
+                    Plugin.Instance.SaveConfiguration();
+
                     lock (_lock)
                     {
                         _progress = 100;
                         _progressMessage = "whisper-cli downloaded successfully.";
                     }
-                }
 
-                _logger.LogInformation("Binary downloaded to {Path} and config updated", BinaryPath);
+                    _logger.LogInformation("Binary downloaded to {Path} and config updated", BinaryPath);
+                }
+                else
+                {
+                    _logger.LogWarning("Binary downloaded to {Path} but NOT applied to config: {Error}", BinaryPath, validationError);
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
