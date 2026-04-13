@@ -51,7 +51,7 @@ namespace WhisperSubs.Providers
                 if (whisperExecutable == null)
                 {
                     throw new InvalidOperationException(
-                        "Whisper executable not found. Please install whisper.cpp and ensure 'whisper-cli' or 'main' is in PATH.");
+                        "Whisper executable not found. Please install whisper.cpp and ensure 'whisper-cli' is in PATH, or set the binary path in plugin settings.");
                 }
 
                 var langPrompt = GetLanguagePrompt(language);
@@ -192,7 +192,7 @@ namespace WhisperSubs.Providers
             if (whisperExecutable == null)
             {
                 throw new InvalidOperationException(
-                    "Whisper executable not found. Please install whisper.cpp and ensure 'whisper-cli' or 'main' is in PATH.");
+                    "Whisper executable not found. Please install whisper.cpp and ensure 'whisper-cli' is in PATH, or set the binary path in plugin settings.");
             }
 
             var startInfo = new ProcessStartInfo
@@ -499,6 +499,11 @@ namespace WhisperSubs.Providers
                     };
 
                     process.Start();
+
+                    // Drain redirected streams to avoid deadlock — the process may
+                    // block if its stdout/stderr buffer fills before WaitForExit returns.
+                    process.StandardOutput.ReadToEnd();
+                    process.StandardError.ReadToEnd();
 
                     if (!process.WaitForExit(5000))
                     {

@@ -524,7 +524,7 @@ namespace WhisperSubs.Controller
             startInfo.ArgumentList.Add("-f");
             startInfo.ArgumentList.Add("null");
             startInfo.ArgumentList.Add("-");
-            var process = new Process { StartInfo = startInfo };
+            using var process = new Process { StartInfo = startInfo };
 
             var errorBuilder = new StringBuilder();
             process.ErrorDataReceived += (_, e) => { if (e.Data != null) errorBuilder.AppendLine(e.Data); };
@@ -532,7 +532,19 @@ namespace WhisperSubs.Controller
             process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
-            await process.WaitForExitAsync(cancellationToken);
+
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw;
+            }
+
+            // Flush async pipe buffers
+            process.WaitForExit();
 
             var output = errorBuilder.ToString();
 
@@ -710,11 +722,22 @@ namespace WhisperSubs.Controller
             startInfo.ArgumentList.Add("-y");
             startInfo.ArgumentList.Add(outputPath);
 
-            var process = new Process { StartInfo = startInfo };
+            using var process = new Process { StartInfo = startInfo };
 
             process.Start();
             process.BeginErrorReadLine();
-            await process.WaitForExitAsync(cancellationToken);
+
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw;
+            }
+
+            process.WaitForExit();
 
             if (process.ExitCode != 0 || !File.Exists(outputPath))
             {
@@ -780,14 +803,25 @@ namespace WhisperSubs.Controller
             probeInfo.ArgumentList.Add("a");
             probeInfo.ArgumentList.Add(mediaPath);
 
-            var process = new Process { StartInfo = probeInfo };
+            using var process = new Process { StartInfo = probeInfo };
 
             var outputBuilder = new StringBuilder();
             process.OutputDataReceived += (_, e) => { if (e.Data != null) outputBuilder.AppendLine(e.Data); };
 
             process.Start();
             process.BeginOutputReadLine();
-            await process.WaitForExitAsync(cancellationToken);
+
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw;
+            }
+
+            process.WaitForExit();
 
             if (process.ExitCode != 0)
             {
@@ -850,14 +884,25 @@ namespace WhisperSubs.Controller
             probeInfo.ArgumentList.Add("a");
             probeInfo.ArgumentList.Add(mediaPath);
 
-            var process = new Process { StartInfo = probeInfo };
+            using var process = new Process { StartInfo = probeInfo };
 
             var outputBuilder = new StringBuilder();
             process.OutputDataReceived += (_, e) => { if (e.Data != null) outputBuilder.AppendLine(e.Data); };
 
             process.Start();
             process.BeginOutputReadLine();
-            await process.WaitForExitAsync(cancellationToken);
+
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw;
+            }
+
+            process.WaitForExit();
 
             if (process.ExitCode != 0) return -1;
 
@@ -939,7 +984,7 @@ namespace WhisperSubs.Controller
             _logger.LogInformation("Running FFmpeg: {Path} {Arguments}", ffmpegPath,
                 string.Join(" ", extractInfo.ArgumentList));
 
-            var process = new Process { StartInfo = extractInfo };
+            using var process = new Process { StartInfo = extractInfo };
 
             var errorBuilder = new StringBuilder();
             process.ErrorDataReceived += (_, e) =>
@@ -953,7 +998,18 @@ namespace WhisperSubs.Controller
 
             process.Start();
             process.BeginErrorReadLine();
-            await process.WaitForExitAsync(cancellationToken);
+
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw;
+            }
+
+            process.WaitForExit();
 
             if (process.ExitCode != 0)
             {
@@ -989,14 +1045,25 @@ namespace WhisperSubs.Controller
             durationInfo.ArgumentList.Add("-show_format");
             durationInfo.ArgumentList.Add(mediaPath);
 
-            var process = new Process { StartInfo = durationInfo };
+            using var process = new Process { StartInfo = durationInfo };
 
             var outputBuilder = new StringBuilder();
             process.OutputDataReceived += (_, e) => { if (e.Data != null) outputBuilder.AppendLine(e.Data); };
 
             process.Start();
             process.BeginOutputReadLine();
-            await process.WaitForExitAsync(cancellationToken);
+
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw;
+            }
+
+            process.WaitForExit();
 
             if (process.ExitCode != 0) return 0;
 
@@ -1071,6 +1138,10 @@ namespace WhisperSubs.Controller
                     };
 
                     process.Start();
+
+                    // Drain redirected streams to avoid deadlock
+                    process.StandardOutput.ReadToEnd();
+                    process.StandardError.ReadToEnd();
 
                     if (!process.WaitForExit(5000))
                     {
