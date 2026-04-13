@@ -16,6 +16,7 @@ namespace WhisperSubs.Providers
         private readonly string _modelPath;
         private readonly string _binaryPath;
         private readonly int _threadCount;
+        private string? _resolvedExecutable;
 
         public string Name => "Whisper";
 
@@ -61,7 +62,8 @@ namespace WhisperSubs.Providers
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
-                    CreateNoWindow = true
+                    CreateNoWindow = true,
+                    WorkingDirectory = Path.GetDirectoryName(whisperExecutable) ?? ""
                 };
 
                 startInfo.ArgumentList.Add("-m");
@@ -87,8 +89,8 @@ namespace WhisperSubs.Providers
                     startInfo.ArgumentList.Add(langPrompt);
                 }
 
-                _logger.LogInformation("Running: {Executable} {Arguments}", whisperExecutable,
-                    string.Join(" ", startInfo.ArgumentList));
+                _logger.LogInformation("Running: {Executable} {Arguments} (cwd: {WorkingDirectory})",
+                    whisperExecutable, string.Join(" ", startInfo.ArgumentList), startInfo.WorkingDirectory);
 
                 using var process = new Process { StartInfo = startInfo };
 
@@ -136,6 +138,9 @@ namespace WhisperSubs.Providers
 
                     throw;
                 }
+
+                // Flush async stdout/stderr pipe buffers so errorBuilder is complete
+                process.WaitForExit();
 
                 if (process.ExitCode != 0)
                 {
@@ -196,7 +201,8 @@ namespace WhisperSubs.Providers
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(whisperExecutable) ?? ""
             };
 
             startInfo.ArgumentList.Add("-m");
@@ -243,6 +249,9 @@ namespace WhisperSubs.Providers
                 try { process.Kill(entireProcessTree: true); } catch { }
                 throw;
             }
+
+            // Flush async stdout/stderr pipe buffers
+            process.WaitForExit();
 
             var allOutput = outputBuilder.ToString() + "\n" + errorBuilder.ToString();
 
@@ -445,15 +454,38 @@ namespace WhisperSubs.Providers
 
         private string? FindWhisperExecutable()
         {
-            var candidates = !string.IsNullOrEmpty(_binaryPath)
-                ? new[] { _binaryPath, "whisper-cli", "main", "whisper" }
-                : new[] { "whisper-cli", "main", "whisper" };
+            if (_resolvedExecutable != null)
+            {
+                return _resolvedExecutable;
+            }
+
+            // When a binary path is explicitly configured, trust it without probing.
+            // Probing with --help is unreliable: CUDA/Vulkan builds take several seconds
+            // to initialize GPU drivers, exceeding any reasonable timeout and causing
+            // the configured path to be silently skipped.
+            if (!string.IsNullOrEmpty(_binaryPath))
+            {
+                if (File.Exists(_binaryPath))
+                {
+                    _logger.LogInformation("Using configured Whisper executable: {Executable}", _binaryPath);
+                    _resolvedExecutable = _binaryPath;
+                    return _resolvedExecutable;
+                }
+
+                _logger.LogError("Configured Whisper binary not found at: {Path}", _binaryPath);
+                return null;
+            }
+
+            // No configured path — discover from PATH via probing.
+            // "main" is intentionally excluded: it is a common binary name on Windows
+            // (VS build tools, Git, etc.) and could resolve to the wrong executable.
+            var candidates = new[] { "whisper-cli", "whisper" };
 
             foreach (var candidate in candidates)
             {
                 try
                 {
-                    var process = new Process
+                    using var process = new Process
                     {
                         StartInfo = new ProcessStartInfo
                         {
@@ -467,15 +499,25 @@ namespace WhisperSubs.Providers
                     };
 
                     process.Start();
-                    process.WaitForExit(1000);
 
-                    if (process.ExitCode == 0 || process.ExitCode == 1)
+                    if (!process.WaitForExit(5000))
                     {
-                        _logger.LogInformation("Found Whisper executable: {Executable}", candidate);
-                        return candidate;
+                        _logger.LogDebug("Probe timed out for {Candidate}, skipping", candidate);
+                        try { process.Kill(); } catch { }
+                        continue;
+                    }
+
+                    if (process.ExitCode == 0)
+                    {
+                        _logger.LogInformation("Found Whisper executable in PATH: {Executable}", candidate);
+                        _resolvedExecutable = candidate;
+                        return _resolvedExecutable;
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug("Probe failed for {Candidate}: {Error}", candidate, ex.Message);
+                }
             }
 
             return null;
