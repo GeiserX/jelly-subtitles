@@ -276,6 +276,17 @@ namespace WhisperSubs.Setup
                 catch { /* not available */ }
             }
 
+            // CUDA userspace libraries — containers often have the GPU device passed
+            // through but lack the CUDA runtime libraries.
+            var cudaPaths = new[]
+            {
+                "/usr/local/cuda/lib64/libcudart.so",
+                "/usr/lib/x86_64-linux-gnu/libcuda.so.1",
+                "/usr/lib64/libcuda.so.1",
+                "/usr/lib/libcuda.so.1"
+            };
+            info.HasCudaLibrary = Array.Exists(cudaPaths, File.Exists);
+
             // AMD ROCm: check for /dev/kfd (ROCm kernel driver)
             if (File.Exists("/dev/kfd"))
             {
@@ -295,16 +306,40 @@ namespace WhisperSubs.Setup
                 catch { /* not available */ }
             }
 
+            // ROCm userspace library
+            var rocmPaths = new[]
+            {
+                "/opt/rocm/lib/libamdhip64.so",
+                "/usr/lib/x86_64-linux-gnu/libamdhip64.so",
+                "/usr/lib64/libamdhip64.so",
+                "/usr/lib/libamdhip64.so"
+            };
+            info.HasRocmLibrary = Array.Exists(rocmPaths, File.Exists);
+
             // Intel / Vulkan: check for /dev/dri/renderD128
             if (File.Exists("/dev/dri/renderD128"))
             {
                 info.HasRenderDevice = true;
             }
 
-            // Recommend variant based on detection
-            if (info.HasNvidia) info.RecommendedVariant = "cuda12";
-            else if (info.HasAmdGpu) info.RecommendedVariant = "rocm";
-            else if (info.HasRenderDevice) info.RecommendedVariant = "vulkan";
+            // Vulkan userspace library — required at runtime by the vulkan binary.
+            // The render device alone is not sufficient; containers often have /dev/dri
+            // passed through but lack the libvulkan.so.1 userspace library.
+            var vulkanPaths = new[]
+            {
+                "/lib/x86_64-linux-gnu/libvulkan.so.1",
+                "/usr/lib/x86_64-linux-gnu/libvulkan.so.1",
+                "/usr/lib/libvulkan.so.1",
+                "/lib64/libvulkan.so.1",
+                "/usr/lib64/libvulkan.so.1",
+                "/lib/aarch64-linux-gnu/libvulkan.so.1"
+            };
+            info.HasVulkanLibrary = Array.Exists(vulkanPaths, File.Exists);
+
+            // Recommend variant based on detection — require both device AND userspace library
+            if (info.HasNvidia && info.HasCudaLibrary) info.RecommendedVariant = "cuda12";
+            else if (info.HasAmdGpu && info.HasRocmLibrary) info.RecommendedVariant = "rocm";
+            else if (info.HasRenderDevice && info.HasVulkanLibrary) info.RecommendedVariant = "vulkan";
             else info.RecommendedVariant = "cpu";
 
             return info;
@@ -386,18 +421,39 @@ namespace WhisperSubs.Setup
                 var sha256 = ComputeSha256(BinaryPath);
                 _logger.LogInformation("Binary {Variant} SHA256: {Hash}", variant, sha256);
 
-                // Auto-apply to plugin config
-                var config = Plugin.Instance.Configuration;
-                config.WhisperBinaryPath = BinaryPath;
-                Plugin.Instance.SaveConfiguration();
-
-                lock (_lock)
+                // Validate the binary can actually run (catches missing shared libraries)
+                var validationError = ValidateBinary(BinaryPath);
+                if (validationError != null)
                 {
-                    _progress = 100;
-                    _progressMessage = "whisper-cli downloaded successfully.";
+                    _logger.LogWarning("Binary validation warning: {Error}", validationError);
+                    lock (_lock)
+                    {
+                        _progress = 100;
+                        _progressMessage = $"whisper-cli downloaded but may not work: {validationError}";
+                        _error = validationError;
+                    }
                 }
 
-                _logger.LogInformation("Binary downloaded to {Path} and config updated", BinaryPath);
+                if (validationError == null)
+                {
+                    // Only auto-apply to config when the binary actually works —
+                    // don't overwrite a working config with a known-bad binary.
+                    var config = Plugin.Instance.Configuration;
+                    config.WhisperBinaryPath = BinaryPath;
+                    Plugin.Instance.SaveConfiguration();
+
+                    lock (_lock)
+                    {
+                        _progress = 100;
+                        _progressMessage = "whisper-cli downloaded successfully.";
+                    }
+
+                    _logger.LogInformation("Binary downloaded to {Path} and config updated", BinaryPath);
+                }
+                else
+                {
+                    _logger.LogWarning("Binary downloaded to {Path} but NOT applied to config: {Error}", BinaryPath, validationError);
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -412,6 +468,60 @@ namespace WhisperSubs.Setup
             finally
             {
                 lock (_lock) { _isRunning = false; }
+            }
+        }
+
+        /// <summary>
+        /// Probes the downloaded binary to check it can actually launch.
+        /// Returns null on success, or a user-friendly error message on failure
+        /// (e.g. missing shared libraries like libvulkan.so.1).
+        /// </summary>
+        private string? ValidateBinary(string binaryPath)
+        {
+            try
+            {
+                using var process = new System.Diagnostics.Process
+                {
+                    StartInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = binaryPath,
+                        Arguments = "--help",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+
+                process.Start();
+                var stdoutTask = process.StandardOutput.ReadToEndAsync();
+                var stderrTask = process.StandardError.ReadToEndAsync();
+
+                if (!process.WaitForExit(10000))
+                {
+                    try { process.Kill(entireProcessTree: true); } catch { }
+                    return null; // Timeout is OK — GPU init can be slow, binary exists and launched
+                }
+
+                var stderr = stderrTask.GetAwaiter().GetResult();
+                _ = stdoutTask.GetAwaiter().GetResult();
+
+                // Exit code 127 = missing shared library (Linux dynamic linker error)
+                if (process.ExitCode == 127)
+                {
+                    // Extract the missing library name from stderr
+                    var match = System.Text.RegularExpressions.Regex.Match(
+                        stderr, @"error while loading shared libraries:\s*(\S+)");
+                    var lib = match.Success ? match.Groups[1].Value : "a shared library";
+                    return $"Missing {lib}. Try the CPU variant, or install the library in your container (e.g. 'apt install libvulkan1' for Vulkan).";
+                }
+
+                return null; // Any other exit code is fine (--help may return non-zero on some builds)
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug("Binary validation probe failed: {Error}", ex.Message);
+                return null; // Can't probe — don't block the download
             }
         }
 
@@ -474,8 +584,11 @@ namespace WhisperSubs.Setup
     public class GpuInfo
     {
         public bool HasNvidia { get; set; }
+        public bool HasCudaLibrary { get; set; }
         public bool HasAmdGpu { get; set; }
+        public bool HasRocmLibrary { get; set; }
         public bool HasRenderDevice { get; set; }
+        public bool HasVulkanLibrary { get; set; }
         public string RecommendedVariant { get; set; } = "cpu";
     }
 
