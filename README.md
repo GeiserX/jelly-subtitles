@@ -359,6 +359,15 @@ See [ROADMAP.md](ROADMAP.md) for planned features and design details.
 - [jellyfin-telegram-channel-sync](https://github.com/GeiserX/jellyfin-telegram-channel-sync) — Sync Jellyfin access with Telegram channel membership
 
 
+
+## Related Projects
+
+| Project | Description |
+|---------|-------------|
+| [jellyfin-encoder](https://github.com/GeiserX/jellyfin-encoder) | Automatic 720p HEVC/AV1 transcoding service for Jellyfin with hardware acceleration |
+| [jellyfin-telegram-channel-sync](https://github.com/GeiserX/jellyfin-telegram-channel-sync) | Sync Jellyfin user access with Telegram channel membership |
+| [smart-covers](https://github.com/GeiserX/smart-covers) | Jellyfin plugin for fallback cover extraction from PDF, EPUB, and audiobook files |
+
 ## License
 
 This project is licensed under the **GNU General Public License v3.0**. See the [LICENSE](LICENSE) file for the full text.
