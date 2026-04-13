@@ -290,12 +290,18 @@
 
                             var hint = document.querySelector('#gpuDetectionHint');
                             if (s.Gpu) {
-                                if (s.Gpu.HasNvidia) {
+                                if (s.Gpu.HasNvidia && s.Gpu.HasCudaLibrary) {
                                     hint.textContent = 'NVIDIA GPU detected — CUDA 12 variant recommended for fastest transcription.';
                                     hint.style.color = '#52B54B';
-                                } else if (s.Gpu.HasAmdGpu) {
+                                } else if (s.Gpu.HasNvidia && !s.Gpu.HasCudaLibrary) {
+                                    hint.textContent = 'NVIDIA GPU detected but CUDA libraries are missing in this container. CPU variant selected. To use CUDA, install nvidia-cuda-toolkit or pass the NVIDIA runtime to your container.';
+                                    hint.style.color = '#CC7B19';
+                                } else if (s.Gpu.HasAmdGpu && s.Gpu.HasRocmLibrary) {
                                     hint.textContent = 'AMD GPU detected — ROCm variant recommended for GPU-accelerated transcription.';
                                     hint.style.color = '#52B54B';
+                                } else if (s.Gpu.HasAmdGpu && !s.Gpu.HasRocmLibrary) {
+                                    hint.textContent = 'AMD GPU detected but ROCm libraries are missing in this container. CPU variant selected. To use ROCm, install the ROCm runtime in your Docker image.';
+                                    hint.style.color = '#CC7B19';
                                 } else if (s.Gpu.HasRenderDevice && s.Gpu.HasVulkanLibrary) {
                                     hint.textContent = 'GPU render device detected — Vulkan variant recommended.';
                                     hint.style.color = '#52B54B';

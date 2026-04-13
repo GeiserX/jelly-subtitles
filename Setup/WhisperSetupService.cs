@@ -276,6 +276,17 @@ namespace WhisperSubs.Setup
                 catch { /* not available */ }
             }
 
+            // CUDA userspace libraries — containers often have the GPU device passed
+            // through but lack the CUDA runtime libraries.
+            var cudaPaths = new[]
+            {
+                "/usr/local/cuda/lib64/libcudart.so",
+                "/usr/lib/x86_64-linux-gnu/libcuda.so.1",
+                "/usr/lib64/libcuda.so.1",
+                "/usr/lib/libcuda.so.1"
+            };
+            info.HasCudaLibrary = Array.Exists(cudaPaths, File.Exists);
+
             // AMD ROCm: check for /dev/kfd (ROCm kernel driver)
             if (File.Exists("/dev/kfd"))
             {
@@ -294,6 +305,16 @@ namespace WhisperSubs.Setup
                 }
                 catch { /* not available */ }
             }
+
+            // ROCm userspace library
+            var rocmPaths = new[]
+            {
+                "/opt/rocm/lib/libamdhip64.so",
+                "/usr/lib/x86_64-linux-gnu/libamdhip64.so",
+                "/usr/lib64/libamdhip64.so",
+                "/usr/lib/libamdhip64.so"
+            };
+            info.HasRocmLibrary = Array.Exists(rocmPaths, File.Exists);
 
             // Intel / Vulkan: check for /dev/dri/renderD128
             if (File.Exists("/dev/dri/renderD128"))
@@ -315,9 +336,9 @@ namespace WhisperSubs.Setup
             };
             info.HasVulkanLibrary = Array.Exists(vulkanPaths, File.Exists);
 
-            // Recommend variant based on detection
-            if (info.HasNvidia) info.RecommendedVariant = "cuda12";
-            else if (info.HasAmdGpu) info.RecommendedVariant = "rocm";
+            // Recommend variant based on detection — require both device AND userspace library
+            if (info.HasNvidia && info.HasCudaLibrary) info.RecommendedVariant = "cuda12";
+            else if (info.HasAmdGpu && info.HasRocmLibrary) info.RecommendedVariant = "rocm";
             else if (info.HasRenderDevice && info.HasVulkanLibrary) info.RecommendedVariant = "vulkan";
             else info.RecommendedVariant = "cpu";
 
@@ -468,14 +489,17 @@ namespace WhisperSubs.Setup
                 };
 
                 process.Start();
-                process.StandardOutput.ReadToEnd();
-                var stderr = process.StandardError.ReadToEnd();
+                var stdoutTask = process.StandardOutput.ReadToEndAsync();
+                var stderrTask = process.StandardError.ReadToEndAsync();
 
                 if (!process.WaitForExit(10000))
                 {
-                    try { process.Kill(); } catch { }
+                    try { process.Kill(entireProcessTree: true); } catch { }
                     return null; // Timeout is OK — GPU init can be slow, binary exists and launched
                 }
+
+                var stderr = stderrTask.GetAwaiter().GetResult();
+                _ = stdoutTask.GetAwaiter().GetResult();
 
                 // Exit code 127 = missing shared library (Linux dynamic linker error)
                 if (process.ExitCode == 127)
@@ -555,7 +579,9 @@ namespace WhisperSubs.Setup
     public class GpuInfo
     {
         public bool HasNvidia { get; set; }
+        public bool HasCudaLibrary { get; set; }
         public bool HasAmdGpu { get; set; }
+        public bool HasRocmLibrary { get; set; }
         public bool HasRenderDevice { get; set; }
         public bool HasVulkanLibrary { get; set; }
         public string RecommendedVariant { get; set; } = "cpu";
