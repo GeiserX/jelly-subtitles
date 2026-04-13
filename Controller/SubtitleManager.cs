@@ -509,19 +509,22 @@ namespace WhisperSubs.Controller
             }
 
             // silencedetect: noise threshold -30dB, minimum silence duration 0.5s
-            var arguments = $"-i \"{audioPath}\" -af silencedetect=noise=-30dB:d=0.5 -f null -";
-            var process = new Process
+            var startInfo = new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = ffmpegPath,
-                    Arguments = arguments,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
+                FileName = ffmpegPath,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
             };
+            startInfo.ArgumentList.Add("-i");
+            startInfo.ArgumentList.Add(audioPath);
+            startInfo.ArgumentList.Add("-af");
+            startInfo.ArgumentList.Add("silencedetect=noise=-30dB:d=0.5");
+            startInfo.ArgumentList.Add("-f");
+            startInfo.ArgumentList.Add("null");
+            startInfo.ArgumentList.Add("-");
+            var process = new Process { StartInfo = startInfo };
 
             var errorBuilder = new StringBuilder();
             process.ErrorDataReceived += (_, e) => { if (e.Data != null) errorBuilder.AppendLine(e.Data); };
@@ -684,21 +687,30 @@ namespace WhisperSubs.Controller
             var ffmpegPath = FindFfmpegExecutable();
             if (ffmpegPath == null) throw new InvalidOperationException("FFmpeg not found");
 
-            var arguments = $"-ss {startSeconds:F3} -t {durationSeconds:F3} -i \"{sourceAudioPath}\" " +
-                            $"-acodec pcm_s16le -ac 1 -ar 16000 -y \"{outputPath}\"";
-
-            var process = new Process
+            var startInfo = new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = ffmpegPath,
-                    Arguments = arguments,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
+                FileName = ffmpegPath,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
             };
+            startInfo.ArgumentList.Add("-ss");
+            startInfo.ArgumentList.Add(startSeconds.ToString("F3"));
+            startInfo.ArgumentList.Add("-t");
+            startInfo.ArgumentList.Add(durationSeconds.ToString("F3"));
+            startInfo.ArgumentList.Add("-i");
+            startInfo.ArgumentList.Add(sourceAudioPath);
+            startInfo.ArgumentList.Add("-acodec");
+            startInfo.ArgumentList.Add("pcm_s16le");
+            startInfo.ArgumentList.Add("-ac");
+            startInfo.ArgumentList.Add("1");
+            startInfo.ArgumentList.Add("-ar");
+            startInfo.ArgumentList.Add("16000");
+            startInfo.ArgumentList.Add("-y");
+            startInfo.ArgumentList.Add(outputPath);
+
+            var process = new Process { StartInfo = startInfo };
 
             process.Start();
             process.BeginErrorReadLine();
@@ -751,19 +763,24 @@ namespace WhisperSubs.Controller
                 return new List<string>();
             }
 
-            var arguments = $"-v quiet -print_format json -show_streams -select_streams a \"{mediaPath}\"";
-            var process = new Process
+            var probeInfo = new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = ffprobePath,
-                    Arguments = arguments,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
+                FileName = ffprobePath,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
             };
+            probeInfo.ArgumentList.Add("-v");
+            probeInfo.ArgumentList.Add("quiet");
+            probeInfo.ArgumentList.Add("-print_format");
+            probeInfo.ArgumentList.Add("json");
+            probeInfo.ArgumentList.Add("-show_streams");
+            probeInfo.ArgumentList.Add("-select_streams");
+            probeInfo.ArgumentList.Add("a");
+            probeInfo.ArgumentList.Add(mediaPath);
+
+            var process = new Process { StartInfo = probeInfo };
 
             var outputBuilder = new StringBuilder();
             process.OutputDataReceived += (_, e) => { if (e.Data != null) outputBuilder.AppendLine(e.Data); };
@@ -816,19 +833,24 @@ namespace WhisperSubs.Controller
             var ffprobePath = FindFfprobeExecutable();
             if (ffprobePath == null) return -1;
 
-            var arguments = $"-v quiet -print_format json -show_streams -select_streams a \"{mediaPath}\"";
-            var process = new Process
+            var probeInfo = new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = ffprobePath,
-                    Arguments = arguments,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
+                FileName = ffprobePath,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
             };
+            probeInfo.ArgumentList.Add("-v");
+            probeInfo.ArgumentList.Add("quiet");
+            probeInfo.ArgumentList.Add("-print_format");
+            probeInfo.ArgumentList.Add("json");
+            probeInfo.ArgumentList.Add("-show_streams");
+            probeInfo.ArgumentList.Add("-select_streams");
+            probeInfo.ArgumentList.Add("a");
+            probeInfo.ArgumentList.Add(mediaPath);
+
+            var process = new Process { StartInfo = probeInfo };
 
             var outputBuilder = new StringBuilder();
             process.OutputDataReceived += (_, e) => { if (e.Data != null) outputBuilder.AppendLine(e.Data); };
@@ -875,32 +897,49 @@ namespace WhisperSubs.Controller
                     "FFmpeg not found. Ensure ffmpeg is installed and available in PATH or at /usr/lib/jellyfin-ffmpeg/ffmpeg");
             }
 
-            var ssArg = startOffsetSeconds > 0 ? $"-ss {startOffsetSeconds:F1} " : "";
-            var mapArg = "";
+            var extractInfo = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            if (startOffsetSeconds > 0)
+            {
+                extractInfo.ArgumentList.Add("-ss");
+                extractInfo.ArgumentList.Add(startOffsetSeconds.ToString("F1"));
+            }
+
+            extractInfo.ArgumentList.Add("-i");
+            extractInfo.ArgumentList.Add(videoPath);
+
             if (!string.IsNullOrEmpty(targetLanguage) && !string.Equals(targetLanguage, "auto", StringComparison.OrdinalIgnoreCase))
             {
                 var streamIndex = await FindAudioStreamIndexAsync(videoPath, targetLanguage, cancellationToken);
                 if (streamIndex >= 0)
                 {
-                    mapArg = $"-map 0:a:{streamIndex} ";
+                    extractInfo.ArgumentList.Add("-map");
+                    extractInfo.ArgumentList.Add($"0:a:{streamIndex}");
                     _logger.LogInformation("Selected audio stream {Index} for language {Language}", streamIndex, targetLanguage);
                 }
             }
-            var arguments = $"{ssArg}-i \"{videoPath}\" {mapArg}-vn -acodec pcm_s16le -ac 1 -ar 16000 -y \"{outputAudioPath}\"";
-            _logger.LogInformation("Running FFmpeg: {Path} {Arguments}", ffmpegPath, arguments);
 
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = ffmpegPath,
-                    Arguments = arguments,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
+            extractInfo.ArgumentList.Add("-vn");
+            extractInfo.ArgumentList.Add("-acodec");
+            extractInfo.ArgumentList.Add("pcm_s16le");
+            extractInfo.ArgumentList.Add("-ac");
+            extractInfo.ArgumentList.Add("1");
+            extractInfo.ArgumentList.Add("-ar");
+            extractInfo.ArgumentList.Add("16000");
+            extractInfo.ArgumentList.Add("-y");
+            extractInfo.ArgumentList.Add(outputAudioPath);
+
+            _logger.LogInformation("Running FFmpeg: {Path} {Arguments}", ffmpegPath,
+                string.Join(" ", extractInfo.ArgumentList));
+
+            var process = new Process { StartInfo = extractInfo };
 
             var errorBuilder = new StringBuilder();
             process.ErrorDataReceived += (_, e) =>
@@ -935,19 +974,22 @@ namespace WhisperSubs.Controller
             var ffprobePath = FindFfprobeExecutable();
             if (ffprobePath == null) return 0;
 
-            var arguments = $"-v quiet -print_format json -show_format \"{mediaPath}\"";
-            var process = new Process
+            var durationInfo = new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = ffprobePath,
-                    Arguments = arguments,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
+                FileName = ffprobePath,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
             };
+            durationInfo.ArgumentList.Add("-v");
+            durationInfo.ArgumentList.Add("quiet");
+            durationInfo.ArgumentList.Add("-print_format");
+            durationInfo.ArgumentList.Add("json");
+            durationInfo.ArgumentList.Add("-show_format");
+            durationInfo.ArgumentList.Add(mediaPath);
+
+            var process = new Process { StartInfo = durationInfo };
 
             var outputBuilder = new StringBuilder();
             process.OutputDataReceived += (_, e) => { if (e.Data != null) outputBuilder.AppendLine(e.Data); };
@@ -1003,9 +1045,19 @@ namespace WhisperSubs.Controller
         {
             foreach (var candidate in candidates)
             {
+                // For absolute paths, trust File.Exists without probing
+                if (Path.IsPathRooted(candidate))
+                {
+                    if (File.Exists(candidate))
+                    {
+                        return candidate;
+                    }
+                    continue;
+                }
+
                 try
                 {
-                    var process = new Process
+                    using var process = new Process
                     {
                         StartInfo = new ProcessStartInfo
                         {
@@ -1019,7 +1071,12 @@ namespace WhisperSubs.Controller
                     };
 
                     process.Start();
-                    process.WaitForExit(1000);
+
+                    if (!process.WaitForExit(5000))
+                    {
+                        try { process.Kill(); } catch { }
+                        continue;
+                    }
 
                     if (process.ExitCode == 0)
                     {

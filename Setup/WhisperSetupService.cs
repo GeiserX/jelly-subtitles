@@ -425,11 +425,12 @@ namespace WhisperSubs.Setup
 
         private static bool IsWhisperInPath()
         {
-            foreach (var name in new[] { "whisper-cli", "main", "whisper" })
+            // "main" excluded — too generic a name, risks matching wrong binaries on Windows
+            foreach (var name in new[] { "whisper-cli", "whisper" })
             {
                 try
                 {
-                    var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     {
                         FileName = name,
                         Arguments = "--help",
@@ -440,11 +441,15 @@ namespace WhisperSubs.Setup
                     });
                     if (p != null)
                     {
-                        p.WaitForExit(1000);
-                        if (p.ExitCode is 0 or 1) return true;
+                        if (!p.WaitForExit(5000))
+                        {
+                            try { p.Kill(); } catch { }
+                            continue;
+                        }
+                        if (p.ExitCode == 0) return true;
                     }
                 }
-                catch { /* not found */ }
+                catch { /* not found in PATH */ }
             }
             return false;
         }
