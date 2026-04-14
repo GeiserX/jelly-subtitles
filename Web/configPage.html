@@ -198,14 +198,20 @@
                 <br />
                 <h2>Subtitle Management</h2>
 
-                <!-- Transcription Queue Status Banner (matches setupBanner pattern) -->
-                <div id="transcriptionBanner" class="cardBox" style="display:none; background:rgba(82,181,75,0.08); border:1px solid rgba(82,181,75,0.3); border-radius:8px; padding:1em 1.5em; margin-bottom:1.5em;">
-                    <div style="display:flex; align-items:center; gap:0.8em; flex-wrap:wrap;">
-                        <span id="transcriptionSpinner" class="material-icons" style="display:inline-block; width:18px; height:18px; border:2px solid rgba(82,181,75,0.3); border-top-color:#52B54B; border-radius:50%; animation:wsQueueSpin 0.8s linear infinite; font-size:0;"></span>
-                        <h3 id="transcriptionTitle" style="margin:0; font-size:1.05em;">Processing</h3>
-                        <span id="transcriptionStats" class="fieldDescription" style="margin:0; margin-left:auto;"></span>
+                <!-- Transcription Queue Status Banner -->
+                <div id="transcriptionBanner" style="display:none; background:rgba(82,181,75,0.08); border:1px solid rgba(82,181,75,0.3); border-radius:8px; padding:1.2em 1.5em; margin-bottom:1.5em;">
+                    <div style="display:flex; align-items:center; gap:0.6em; margin-bottom:0.8em;">
+                        <span id="transcriptionSpinner" style="display:inline-block; width:16px; height:16px; border:2px solid rgba(82,181,75,0.3); border-top-color:#52B54B; border-radius:50%; animation:wsQueueSpin 0.8s linear infinite;"></span>
+                        <h3 id="transcriptionTitle" style="margin:0; font-size:1.1em;">Generating Subtitles</h3>
                     </div>
-                    <div id="transcriptionCurrentItem" class="fieldDescription" style="margin-top:0.5em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+                    <div style="background:rgba(0,0,0,0.3); border-radius:4px; overflow:hidden; height:22px; position:relative;">
+                        <div id="transcriptionProgressBar" style="background:#52B54B; height:100%; width:0%; transition:width 0.5s ease; min-width:0;"></div>
+                        <span id="transcriptionProgressPct" style="position:absolute; top:0; left:0; right:0; text-align:center; line-height:22px; font-size:0.8em; font-weight:bold; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,0.5);"></span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:0.6em; flex-wrap:wrap; gap:0.3em;">
+                        <div id="transcriptionCurrentItem" class="fieldDescription" style="margin:0; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+                        <div id="transcriptionStats" class="fieldDescription" style="margin:0; white-space:nowrap; text-align:right;"></div>
+                    </div>
                 </div>
                 <style>@keyframes wsQueueSpin{to{transform:rotate(360deg)}}</style>
 
@@ -893,21 +899,32 @@
                     WhisperSubsConfig.ajaxGet(queueUrl)
                         .then(function (q) {
                             console.log('WhisperSubs: queue — processing=' + q.isProcessing +
-                                ', remaining=' + q.remaining + ', processed=' + q.processed);
+                                ', remaining=' + q.remaining + ', processed=' + q.processed +
+                                ', failed=' + q.failed + ', total=' + q.taskTotal);
+
                             var banner = document.querySelector('#transcriptionBanner');
+                            var bar = document.querySelector('#transcriptionProgressBar');
+                            var pct = document.querySelector('#transcriptionProgressPct');
+                            var title = document.querySelector('#transcriptionTitle');
+                            var stats = document.querySelector('#transcriptionStats');
+                            var current = document.querySelector('#transcriptionCurrentItem');
+                            var spinner = document.querySelector('#transcriptionSpinner');
+
+                            // ── Idle: hide or show "Finished" briefly ──
                             if (!q.isProcessing && q.remaining === 0) {
                                 if (banner.style.display !== 'none' && q.processed > 0) {
-                                    // Show neutral "Finished" state — processed count includes failures
-                                    document.querySelector('#transcriptionSpinner').style.animation = 'none';
-                                    document.querySelector('#transcriptionSpinner').style.border = 'none';
-                                    document.querySelector('#transcriptionSpinner').innerHTML = '&#9632;';
-                                    document.querySelector('#transcriptionSpinner').style.color = '';
-                                    document.querySelector('#transcriptionSpinner').style.fontSize = '0.9em';
-                                    document.querySelector('#transcriptionTitle').textContent = 'Finished';
-                                    var finishText = q.processed + ' processed';
-                                    if (q.failed > 0) finishText += ', ' + q.failed + ' failed';
-                                    document.querySelector('#transcriptionStats').textContent = finishText;
-                                    document.querySelector('#transcriptionCurrentItem').textContent = '';
+                                    spinner.style.animation = 'none';
+                                    spinner.style.borderColor = 'transparent';
+                                    spinner.innerHTML = '\u2714';
+                                    spinner.style.fontSize = '1.1em';
+                                    spinner.style.color = '#52B54B';
+                                    title.textContent = 'Finished';
+                                    bar.style.width = '100%';
+                                    pct.textContent = '';
+                                    current.textContent = '';
+                                    var finishParts = [q.processed.toLocaleString() + ' processed'];
+                                    if (q.failed > 0) finishParts.push(q.failed + ' failed');
+                                    stats.textContent = finishParts.join(' \u00b7 ');
                                     if (WhisperSubsConfig._queueHideTimer) {
                                         clearTimeout(WhisperSubsConfig._queueHideTimer);
                                     }
@@ -915,7 +932,7 @@
                                         banner.style.display = 'none';
                                         WhisperSubsConfig.resetQueueBanner();
                                         WhisperSubsConfig._queueHideTimer = null;
-                                    }, 5000);
+                                    }, 8000);
                                 } else {
                                     banner.style.display = 'none';
                                 }
@@ -923,23 +940,39 @@
                                 return;
                             }
 
+                            // ── Active: show banner with progress ──
                             banner.style.display = '';
-                            var statsText = '';
-                            if (q.taskTotal > 0) statsText += q.processed + '/' + q.taskTotal;
-                            else if (q.remaining > 0) statsText += q.remaining + ' queued';
-                            if (q.processed > 0 && !q.taskTotal) statsText += (statsText ? ' \u00b7 ' : '') + q.processed + ' done';
-                            if (q.failed > 0) statsText += ' \u00b7 ' + q.failed + ' failed';
-                            document.querySelector('#transcriptionStats').textContent = statsText;
 
+                            // Progress bar
+                            var total = q.taskTotal || (q.processed + q.remaining);
+                            var percent = total > 0 ? Math.min(Math.round(q.processed / total * 100), 99) : 0;
+                            bar.style.width = percent + '%';
+                            pct.textContent = percent + '%';
+
+                            // Title
+                            title.textContent = q.currentItem ? 'Generating Subtitles' : 'Waiting\u2026';
+
+                            // Current item
                             if (q.currentItem) {
-                                document.querySelector('#transcriptionTitle').textContent = 'Transcribing';
-                                document.querySelector('#transcriptionCurrentItem').textContent = q.currentItem;
-                            } else if (q.remaining > 0) {
-                                document.querySelector('#transcriptionTitle').textContent = 'Queue waiting';
-                                document.querySelector('#transcriptionCurrentItem').textContent = '';
+                                current.innerHTML = 'Now processing: <strong>' +
+                                    WhisperSubsConfig.escapeHtml(q.currentItem) + '</strong>';
+                            } else {
+                                current.textContent = '';
                             }
+
+                            // Stats line
+                            var parts = [];
+                            parts.push(q.processed.toLocaleString() + ' of ' + total.toLocaleString() + ' items');
+                            if (q.failed > 0) parts.push(q.failed + ' failed');
+                            stats.textContent = parts.join(' \u00b7 ');
                         })
                         .catch(function () { /* ignore transient errors */ });
+                },
+
+                escapeHtml: function (str) {
+                    var div = document.createElement('div');
+                    div.appendChild(document.createTextNode(str));
+                    return div.innerHTML;
                 },
 
                 resetQueueBanner: function () {
@@ -949,10 +982,12 @@
                     spinner.style.borderTopColor = '#52B54B';
                     spinner.style.animation = 'wsQueueSpin 0.8s linear infinite';
                     spinner.style.color = '';
-                    spinner.style.fontSize = '0';
-                    document.querySelector('#transcriptionTitle').textContent = 'Processing';
+                    spinner.style.fontSize = '';
+                    document.querySelector('#transcriptionTitle').textContent = 'Generating Subtitles';
                     document.querySelector('#transcriptionStats').textContent = '';
                     document.querySelector('#transcriptionCurrentItem').textContent = '';
+                    document.querySelector('#transcriptionProgressBar').style.width = '0%';
+                    document.querySelector('#transcriptionProgressPct').textContent = '';
                 },
 
                 generateSubtitle: function (itemId, itemName, itemType) {
