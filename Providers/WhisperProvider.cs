@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using WhisperSubs.Controller;
 using Microsoft.Extensions.Logging;
 
 namespace WhisperSubs.Providers
@@ -109,7 +110,17 @@ namespace WhisperSubs.Providers
                     if (!string.IsNullOrEmpty(e.Data))
                     {
                         errorBuilder.AppendLine(e.Data);
-                        _logger.LogWarning("Whisper stderr: {Error}", e.Data);
+
+                        // Parse whisper progress: "whisper_print_progress_callback: progress = 42%"
+                        var progressMatch = Regex.Match(e.Data, @"progress\s*=\s*(\d+)%");
+                        if (progressMatch.Success && int.TryParse(progressMatch.Groups[1].Value, out var pct))
+                        {
+                            SubtitleQueueService.Instance.ReportFileProgress(pct);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Whisper stderr: {Error}", e.Data);
+                        }
                     }
                 };
 

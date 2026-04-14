@@ -199,7 +199,8 @@ namespace WhisperSubs.Api
                     : queue.PriorityCount,
                 processed = queue.ProcessedCount + queue.TaskProcessed,
                 failed = queue.TaskFailed,
-                taskTotal = queue.IsTaskRunning ? queue.TaskTotal : 0
+                taskTotal = queue.IsTaskRunning ? queue.TaskTotal : 0,
+                fileProgress = queue.CurrentFileProgress
             });
         }
 

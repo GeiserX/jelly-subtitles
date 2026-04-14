@@ -943,26 +943,26 @@
                             // ── Active: show banner with progress ──
                             banner.style.display = '';
 
-                            // Progress bar
-                            var total = q.taskTotal || (q.processed + q.remaining);
-                            var percent = total > 0 ? Math.min(Math.round(q.processed / total * 100), 99) : 0;
-                            bar.style.width = percent + '%';
-                            pct.textContent = percent + '%';
+                            // Progress bar — shows per-file whisper progress (0-100%)
+                            var filePct = q.fileProgress || 0;
+                            bar.style.width = filePct + '%';
+                            pct.textContent = filePct > 0 ? filePct + '%' : '';
 
                             // Title
                             title.textContent = q.currentItem ? 'Generating Subtitles' : 'Waiting\u2026';
 
                             // Current item
+                            var total = q.taskTotal || (q.processed + q.remaining);
                             if (q.currentItem) {
-                                current.innerHTML = 'Now processing: <strong>' +
+                                current.innerHTML = '<strong>' +
                                     WhisperSubsConfig.escapeHtml(q.currentItem) + '</strong>';
                             } else {
                                 current.textContent = '';
                             }
 
-                            // Stats line
+                            // Stats line — overall progress
                             var parts = [];
-                            parts.push(q.processed.toLocaleString() + ' of ' + total.toLocaleString() + ' items');
+                            if (total > 0) parts.push(q.processed.toLocaleString() + ' of ' + total.toLocaleString() + ' items');
                             if (q.failed > 0) parts.push(q.failed + ' failed');
                             stats.textContent = parts.join(' \u00b7 ');
                         })

@@ -240,6 +240,7 @@ namespace WhisperSubs.ScheduledTasks
                 {
                     _logger.LogInformation("[{Current}/{Total}] Processing {ItemName}",
                         completed + 1, allItems.Count, item.Name);
+                    queue.ResetFileProgress();
                     queue.ReportTaskProgress(item.Name, completed, allItems.Count, failed);
 
                     await SubtitleQueueService.TranscriptionLock.WaitAsync(cancellationToken);

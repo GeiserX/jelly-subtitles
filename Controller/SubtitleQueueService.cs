@@ -52,6 +52,24 @@ namespace WhisperSubs.Controller
         public bool IsDraining => _isDraining == 1;
         public int ProcessedCount => _processedCount;
 
+        // ── Per-file progress (updated by WhisperProvider stderr) ──
+        private int _currentFileProgress;
+
+        /// <summary>Current file transcription progress (0-100), parsed from whisper stderr.</summary>
+        public int CurrentFileProgress => _currentFileProgress;
+
+        /// <summary>Updates the current file's transcription progress.</summary>
+        public void ReportFileProgress(int percent)
+        {
+            Interlocked.Exchange(ref _currentFileProgress, Math.Clamp(percent, 0, 100));
+        }
+
+        /// <summary>Resets file progress to 0 (call when starting a new item).</summary>
+        public void ResetFileProgress()
+        {
+            Interlocked.Exchange(ref _currentFileProgress, 0);
+        }
+
         /// <summary>Whether the scheduled auto-generation task is running.</summary>
         public bool IsTaskRunning => _taskIsRunning == 1;
         public string? TaskCurrentItemName => _taskCurrentItemName;
