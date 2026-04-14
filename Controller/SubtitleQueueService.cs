@@ -40,10 +40,41 @@ namespace WhisperSubs.Controller
         /// </summary>
         public static readonly SemaphoreSlim TranscriptionLock = new(1, 1);
 
+        // ── Scheduled task progress tracking ─────────────────────
+        private string? _taskCurrentItemName;
+        private int _taskTotal;
+        private int _taskProcessed;
+        private int _taskFailed;
+        private int _taskIsRunning;
+
         public int PriorityCount => _priorityQueue.Count;
-        public string? CurrentItemName => _currentItemName;
+        public string? CurrentItemName => _currentItemName ?? _taskCurrentItemName;
         public bool IsDraining => _isDraining == 1;
         public int ProcessedCount => _processedCount;
+
+        /// <summary>Whether the scheduled auto-generation task is running.</summary>
+        public bool IsTaskRunning => _taskIsRunning == 1;
+        public string? TaskCurrentItemName => _taskCurrentItemName;
+        public int TaskTotal => _taskTotal;
+        public int TaskProcessed => _taskProcessed;
+        public int TaskFailed => _taskFailed;
+
+        /// <summary>Reports progress from the scheduled task so the Queue endpoint can expose it.</summary>
+        public void ReportTaskProgress(string? itemName, int processed, int total, int failed)
+        {
+            _taskCurrentItemName = itemName;
+            _taskProcessed = processed;
+            _taskTotal = total;
+            _taskFailed = failed;
+            Interlocked.CompareExchange(ref _taskIsRunning, 1, 0);
+        }
+
+        /// <summary>Marks the scheduled task as complete.</summary>
+        public void ReportTaskComplete()
+        {
+            _taskCurrentItemName = null;
+            Interlocked.Exchange(ref _taskIsRunning, 0);
+        }
 
         private static string QueueFilePath
         {

@@ -904,7 +904,9 @@
                                     document.querySelector('#transcriptionSpinner').style.color = '';
                                     document.querySelector('#transcriptionSpinner').style.fontSize = '0.9em';
                                     document.querySelector('#transcriptionTitle').textContent = 'Finished';
-                                    document.querySelector('#transcriptionStats').textContent = q.processed + ' processed';
+                                    var finishText = q.processed + ' processed';
+                                    if (q.failed > 0) finishText += ', ' + q.failed + ' failed';
+                                    document.querySelector('#transcriptionStats').textContent = finishText;
                                     document.querySelector('#transcriptionCurrentItem').textContent = '';
                                     if (WhisperSubsConfig._queueHideTimer) {
                                         clearTimeout(WhisperSubsConfig._queueHideTimer);
@@ -923,8 +925,10 @@
 
                             banner.style.display = '';
                             var statsText = '';
-                            if (q.remaining > 0) statsText += q.remaining + ' queued';
-                            if (q.processed > 0) statsText += (statsText ? ' \u00b7 ' : '') + q.processed + ' done';
+                            if (q.taskTotal > 0) statsText += q.processed + '/' + q.taskTotal;
+                            else if (q.remaining > 0) statsText += q.remaining + ' queued';
+                            if (q.processed > 0 && !q.taskTotal) statsText += (statsText ? ' \u00b7 ' : '') + q.processed + ' done';
+                            if (q.failed > 0) statsText += ' \u00b7 ' + q.failed + ' failed';
                             document.querySelector('#transcriptionStats').textContent = statsText;
 
                             if (q.currentItem) {

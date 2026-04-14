@@ -145,6 +145,7 @@ namespace WhisperSubs.ScheduledTasks
 
             var completed = 0;
             var failed = 0;
+            queue.ReportTaskProgress(null, 0, allItems.Count, 0);
 
             for (int i = 0; i < allItems.Count; i++)
             {
@@ -237,6 +238,7 @@ namespace WhisperSubs.ScheduledTasks
                 {
                     _logger.LogInformation("[{Current}/{Total}] Processing {ItemName}",
                         completed + 1, allItems.Count, item.Name);
+                    queue.ReportTaskProgress(item.Name, completed, allItems.Count, failed);
 
                     await SubtitleQueueService.TranscriptionLock.WaitAsync(cancellationToken);
                     try
@@ -262,6 +264,8 @@ namespace WhisperSubs.ScheduledTasks
                 progress.Report((double)completed / allItems.Count * 100);
             }
 
+            queue.ReportTaskProgress(null, completed, allItems.Count, failed);
+            queue.ReportTaskComplete();
             _logger.LogInformation("Subtitle generation task complete. Processed: {Processed}, Failed: {Failed}",
                 completed, failed);
         }

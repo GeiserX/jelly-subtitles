@@ -192,10 +192,14 @@ namespace WhisperSubs.Api
             var queue = SubtitleQueueService.Instance;
             return Ok(new
             {
-                isProcessing = queue.IsDraining,
+                isProcessing = queue.IsDraining || queue.IsTaskRunning,
                 currentItem = queue.CurrentItemName,
-                remaining = queue.PriorityCount,
-                processed = queue.ProcessedCount
+                remaining = queue.IsTaskRunning
+                    ? queue.PriorityCount + (queue.TaskTotal - queue.TaskProcessed)
+                    : queue.PriorityCount,
+                processed = queue.ProcessedCount + queue.TaskProcessed,
+                failed = queue.TaskFailed,
+                taskTotal = queue.IsTaskRunning ? queue.TaskTotal : 0
             });
         }
 
