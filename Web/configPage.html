@@ -198,14 +198,14 @@
                 <br />
                 <h2>Subtitle Management</h2>
 
-                <!-- Transcription Queue Status Banner -->
-                <div id="transcriptionBanner" style="display:none; background:rgba(82,181,75,0.08); border:1px solid rgba(82,181,75,0.3); border-radius:8px; padding:1em 1.5em; margin-bottom:1.5em;">
+                <!-- Transcription Queue Status Banner (matches setupBanner pattern) -->
+                <div id="transcriptionBanner" class="cardBox" style="display:none; background:rgba(82,181,75,0.08); border:1px solid rgba(82,181,75,0.3); border-radius:8px; padding:1em 1.5em; margin-bottom:1.5em;">
                     <div style="display:flex; align-items:center; gap:0.8em; flex-wrap:wrap;">
-                        <span id="transcriptionSpinner" style="display:inline-block; width:18px; height:18px; border:2px solid rgba(82,181,75,0.3); border-top-color:#52B54B; border-radius:50%; animation:wsQueueSpin 0.8s linear infinite;"></span>
-                        <strong id="transcriptionTitle" style="font-size:1.05em;">Processing</strong>
-                        <span id="transcriptionStats" style="opacity:0.8; margin-left:auto; font-size:0.9em;"></span>
+                        <span id="transcriptionSpinner" class="material-icons" style="display:inline-block; width:18px; height:18px; border:2px solid rgba(82,181,75,0.3); border-top-color:#52B54B; border-radius:50%; animation:wsQueueSpin 0.8s linear infinite; font-size:0;"></span>
+                        <h3 id="transcriptionTitle" style="margin:0; font-size:1.05em;">Processing</h3>
+                        <span id="transcriptionStats" class="fieldDescription" style="margin:0; margin-left:auto;"></span>
                     </div>
-                    <div id="transcriptionCurrentItem" style="margin-top:0.5em; opacity:0.85; font-size:0.92em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+                    <div id="transcriptionCurrentItem" class="fieldDescription" style="margin-top:0.5em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
                 </div>
                 <style>@keyframes wsQueueSpin{to{transform:rotate(360deg)}}</style>
 
@@ -257,6 +257,7 @@
                 _progressPollTimer: null,
                 _quickSetupPhase: null,
                 _queuePollTimer: null,
+                _queueHideTimer: null,
 
                 // ── Setup wizard ─────────────────────────────────────────
 
@@ -866,6 +867,12 @@
                 // ── Transcription queue polling ─────────────────────────
 
                 startQueuePolling: function () {
+                    // Cancel any pending auto-hide from a previous "Finished" state
+                    if (WhisperSubsConfig._queueHideTimer) {
+                        clearTimeout(WhisperSubsConfig._queueHideTimer);
+                        WhisperSubsConfig._queueHideTimer = null;
+                    }
+                    WhisperSubsConfig.resetQueueBanner();
                     if (WhisperSubsConfig._queuePollTimer) return;
                     WhisperSubsConfig.pollQueueStatus();
                     WhisperSubsConfig._queuePollTimer = setInterval(function () {
@@ -881,23 +888,31 @@
                 },
 
                 pollQueueStatus: function () {
-                    WhisperSubsConfig.ajaxGet(ApiClient.getUrl('Plugins/WhisperSubs/Queue'))
+                    var queueUrl = ApiClient.getUrl('Plugins/WhisperSubs/Queue');
+                    console.log('WhisperSubs: polling queue status');
+                    WhisperSubsConfig.ajaxGet(queueUrl)
                         .then(function (q) {
+                            console.log('WhisperSubs: queue — processing=' + q.isProcessing +
+                                ', remaining=' + q.remaining + ', processed=' + q.processed);
                             var banner = document.querySelector('#transcriptionBanner');
                             if (!q.isProcessing && q.remaining === 0) {
                                 if (banner.style.display !== 'none' && q.processed > 0) {
-                                    // Show completion briefly before hiding
+                                    // Show neutral "Finished" state — processed count includes failures
                                     document.querySelector('#transcriptionSpinner').style.animation = 'none';
-                                    document.querySelector('#transcriptionSpinner').innerHTML = '&#10003;';
                                     document.querySelector('#transcriptionSpinner').style.border = 'none';
-                                    document.querySelector('#transcriptionSpinner').style.color = '#52B54B';
-                                    document.querySelector('#transcriptionSpinner').style.fontSize = '1.2em';
-                                    document.querySelector('#transcriptionTitle').textContent = 'Complete';
+                                    document.querySelector('#transcriptionSpinner').innerHTML = '&#9632;';
+                                    document.querySelector('#transcriptionSpinner').style.color = '';
+                                    document.querySelector('#transcriptionSpinner').style.fontSize = '0.9em';
+                                    document.querySelector('#transcriptionTitle').textContent = 'Finished';
                                     document.querySelector('#transcriptionStats').textContent = q.processed + ' processed';
                                     document.querySelector('#transcriptionCurrentItem').textContent = '';
-                                    setTimeout(function () {
+                                    if (WhisperSubsConfig._queueHideTimer) {
+                                        clearTimeout(WhisperSubsConfig._queueHideTimer);
+                                    }
+                                    WhisperSubsConfig._queueHideTimer = setTimeout(function () {
                                         banner.style.display = 'none';
                                         WhisperSubsConfig.resetQueueBanner();
+                                        WhisperSubsConfig._queueHideTimer = null;
                                     }, 5000);
                                 } else {
                                     banner.style.display = 'none';
@@ -909,7 +924,7 @@
                             banner.style.display = '';
                             var statsText = '';
                             if (q.remaining > 0) statsText += q.remaining + ' queued';
-                            if (q.processed > 0) statsText += (statsText ? ' · ' : '') + q.processed + ' done';
+                            if (q.processed > 0) statsText += (statsText ? ' \u00b7 ' : '') + q.processed + ' done';
                             document.querySelector('#transcriptionStats').textContent = statsText;
 
                             if (q.currentItem) {
@@ -930,7 +945,7 @@
                     spinner.style.borderTopColor = '#52B54B';
                     spinner.style.animation = 'wsQueueSpin 0.8s linear infinite';
                     spinner.style.color = '';
-                    spinner.style.fontSize = '';
+                    spinner.style.fontSize = '0';
                     document.querySelector('#transcriptionTitle').textContent = 'Processing';
                     document.querySelector('#transcriptionStats').textContent = '';
                     document.querySelector('#transcriptionCurrentItem').textContent = '';
