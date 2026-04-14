@@ -946,16 +946,33 @@
                             // Progress bar — shows per-file whisper progress (0-100%)
                             var filePct = q.fileProgress || 0;
                             bar.style.width = filePct + '%';
-                            pct.textContent = filePct > 0 ? filePct + '%' : '';
+                            pct.textContent = filePct + '%';
 
-                            // Title
-                            title.textContent = q.currentItem ? 'Generating Subtitles' : 'Waiting\u2026';
+                            // Title — show phase if available
+                            if (q.phase) {
+                                title.textContent = q.phase;
+                            } else if (q.currentItem) {
+                                title.textContent = 'Generating Subtitles';
+                            } else {
+                                title.textContent = 'Waiting\u2026';
+                            }
 
-                            // Current item
+                            // Current item — with type badge and library
                             var total = q.taskTotal || (q.processed + q.remaining);
                             if (q.currentItem) {
-                                current.innerHTML = '<strong>' +
-                                    WhisperSubsConfig.escapeHtml(q.currentItem) + '</strong>';
+                                var itemLabel = '';
+                                if (q.itemType) {
+                                    var typeLabel = q.itemType === 'Episode' ? 'Episode'
+                                        : q.itemType === 'Audio' ? 'Audio' : 'Movie';
+                                    itemLabel += '<span style="opacity:0.7; font-size:0.9em;">' +
+                                        WhisperSubsConfig.escapeHtml(typeLabel) + ' \u00b7 </span>';
+                                }
+                                itemLabel += '<strong>' + WhisperSubsConfig.escapeHtml(q.currentItem) + '</strong>';
+                                if (q.library) {
+                                    itemLabel += '<span style="opacity:0.5; font-size:0.85em;"> \u2014 ' +
+                                        WhisperSubsConfig.escapeHtml(q.library) + '</span>';
+                                }
+                                current.innerHTML = itemLabel;
                             } else {
                                 current.textContent = '';
                             }
