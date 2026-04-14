@@ -177,6 +177,7 @@ namespace WhisperSubs.ScheduledTasks
                                 if (System.IO.File.Exists(exactLrc) || System.IO.Directory.GetFiles(audioDir, audioBase + ".*.lrc").Length > 0)
                                 {
                                     completed++;
+                                    queue.ReportTaskProgress(null, completed, allItems.Count, failed);
                                     progress.Report((double)completed / allItems.Count * 100);
                                     continue;
                                 }
@@ -228,6 +229,7 @@ namespace WhisperSubs.ScheduledTasks
                         if (alreadyComplete)
                         {
                             completed++;
+                            queue.ReportTaskProgress(null, completed, allItems.Count, failed);
                             progress.Report((double)completed / allItems.Count * 100);
                             continue;
                         }
@@ -261,6 +263,7 @@ namespace WhisperSubs.ScheduledTasks
                 }
 
                 completed++;
+                queue.ReportTaskProgress(null, completed, allItems.Count, failed);
                 progress.Report((double)completed / allItems.Count * 100);
             }
 
