@@ -94,6 +94,10 @@ namespace WhisperSubs.Controller
             _taskFailed = failed;
             _taskCurrentItemType = itemType;
             _taskCurrentItemLibrary = libraryName;
+            if (string.IsNullOrEmpty(itemName))
+            {
+                _currentPhase = null;
+            }
             Interlocked.CompareExchange(ref _taskIsRunning, 1, 0);
         }
 
