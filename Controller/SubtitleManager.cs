@@ -108,7 +108,9 @@ namespace WhisperSubs.Controller
 
             try
             {
+                SubtitleQueueService.Instance.ReportPhase("Extracting audio");
                 await ExtractAudioAsync(mediaPath, tempAudioPath, lang, cancellationToken, resumeOffsetSeconds);
+                SubtitleQueueService.Instance.ReportPhase("Transcribing");
                 string srtContent = await provider.TranscribeAsync(tempAudioPath, lang, cancellationToken);
 
                 if (resumeOffsetSeconds > 0 && !string.IsNullOrWhiteSpace(existingSrt))
@@ -220,6 +222,7 @@ namespace WhisperSubs.Controller
                 _logger.LogInformation("Generating forced subtitle for {ItemName} [{Language}]", item.Name, resolvedPrimary);
 
                 // Step 1: Extract full audio
+                SubtitleQueueService.Instance.ReportPhase("Extracting audio");
                 await ExtractAudioAsync(mediaPath, fullAudioPath, resolvedPrimary, cancellationToken);
 
                 // Step 2: Get duration
@@ -235,6 +238,7 @@ namespace WhisperSubs.Controller
                 }
 
                 // Step 3: VAD-based speech segmentation via silencedetect
+                SubtitleQueueService.Instance.ReportPhase("Analyzing audio");
                 var speechSegments = await DetectSpeechSegmentsAsync(fullAudioPath, totalDuration, cancellationToken);
 
                 if (speechSegments.Count == 0)
@@ -248,6 +252,7 @@ namespace WhisperSubs.Controller
                 _logger.LogInformation("Analyzing {Count} audio chunks for foreign language in {ItemName}", chunks.Count, item.Name);
 
                 // Step 5: Language detection per chunk
+                SubtitleQueueService.Instance.ReportPhase("Detecting languages");
                 var foreignChunks = new List<(double Start, double End, string Language)>();
                 int successfulDetections = 0;
 
@@ -307,6 +312,7 @@ namespace WhisperSubs.Controller
                 var mergedSegments = MergeForeignChunks(foreignChunks);
 
                 // Step 7: Transcribe foreign segments
+                SubtitleQueueService.Instance.ReportPhase("Transcribing");
                 var forcedSrt = new StringBuilder();
                 int entryNum = 1;
 
@@ -419,7 +425,9 @@ namespace WhisperSubs.Controller
 
             try
             {
+                SubtitleQueueService.Instance.ReportPhase("Extracting audio");
                 await ExtractAudioAsync(mediaPath, tempAudioPath, lang, cancellationToken);
+                SubtitleQueueService.Instance.ReportPhase("Transcribing");
                 string srtContent = await provider.TranscribeAsync(tempAudioPath, lang, cancellationToken);
                 string lrcContent = ConvertSrtToLrc(srtContent, item.Name);
 

@@ -110,9 +110,12 @@ namespace WhisperSubs.ScheduledTasks
                 includeKinds.Add(BaseItemKind.Audio);
             }
 
-            var allItems = new List<BaseItem>();
+            var allItems = new List<(BaseItem Item, string LibraryName)>();
             foreach (var libraryId in enabledLibraryIds)
             {
+                var library = _libraryManager.GetItemById(libraryId);
+                var libraryName = library?.Name ?? "Unknown";
+
                 var items = _libraryManager.GetItemList(new InternalItemsQuery
                 {
                     ParentId = libraryId,
@@ -125,11 +128,11 @@ namespace WhisperSubs.ScheduledTasks
                     if (queryItem is Video video)
                     {
                         if (!needsForced && video.HasSubtitles) continue;
-                        allItems.Add(video);
+                        allItems.Add((video, libraryName));
                     }
                     else if (queryItem is MediaBrowser.Controller.Entities.Audio.Audio)
                     {
-                        allItems.Add(queryItem);
+                        allItems.Add((queryItem, libraryName));
                     }
                 }
             }
@@ -158,7 +161,8 @@ namespace WhisperSubs.ScheduledTasks
                     await queue.DrainPriorityAsync(manager, provider, _logger, cancellationToken);
                 }
 
-                var item = allItems[i];
+                var (item, libName) = allItems[i];
+                var itemType = item.GetType().Name;
 
                 // For Audio items (lyrics), skip if .lrc already exists
                 if (item is MediaBrowser.Controller.Entities.Audio.Audio)
@@ -241,7 +245,7 @@ namespace WhisperSubs.ScheduledTasks
                     _logger.LogInformation("[{Current}/{Total}] Processing {ItemName}",
                         completed + 1, allItems.Count, item.Name);
                     queue.ResetFileProgress();
-                    queue.ReportTaskProgress(item.Name, completed, allItems.Count, failed);
+                    queue.ReportTaskProgress(item.Name, completed, allItems.Count, failed, itemType, libName);
 
                     await SubtitleQueueService.TranscriptionLock.WaitAsync(cancellationToken);
                     try

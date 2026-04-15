@@ -72,25 +72,48 @@ namespace WhisperSubs.Controller
 
         /// <summary>Whether the scheduled auto-generation task is running.</summary>
         public bool IsTaskRunning => _taskIsRunning == 1;
+        private string? _taskCurrentItemType;
+        private string? _taskCurrentItemLibrary;
+        private string? _currentPhase;
+
         public string? TaskCurrentItemName => _taskCurrentItemName;
+        public string? TaskCurrentItemType => _taskCurrentItemType;
+        public string? TaskCurrentItemLibrary => _taskCurrentItemLibrary;
+        public string? CurrentPhase => _currentPhase;
         public int TaskTotal => _taskTotal;
         public int TaskProcessed => _taskProcessed;
         public int TaskFailed => _taskFailed;
 
         /// <summary>Reports progress from the scheduled task so the Queue endpoint can expose it.</summary>
-        public void ReportTaskProgress(string? itemName, int processed, int total, int failed)
+        public void ReportTaskProgress(string? itemName, int processed, int total, int failed,
+            string? itemType = null, string? libraryName = null)
         {
             _taskCurrentItemName = itemName;
             _taskProcessed = processed;
             _taskTotal = total;
             _taskFailed = failed;
+            _taskCurrentItemType = itemType;
+            _taskCurrentItemLibrary = libraryName;
+            if (string.IsNullOrEmpty(itemName))
+            {
+                _currentPhase = null;
+            }
             Interlocked.CompareExchange(ref _taskIsRunning, 1, 0);
+        }
+
+        /// <summary>Reports the current processing phase (e.g. "Extracting audio", "Transcribing").</summary>
+        public void ReportPhase(string phase)
+        {
+            _currentPhase = phase;
         }
 
         /// <summary>Marks the scheduled task as complete.</summary>
         public void ReportTaskComplete()
         {
             _taskCurrentItemName = null;
+            _taskCurrentItemType = null;
+            _taskCurrentItemLibrary = null;
+            _currentPhase = null;
             Interlocked.Exchange(ref _taskIsRunning, 0);
         }
 
