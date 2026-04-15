@@ -18,13 +18,18 @@
 ## Features
 
 - **Fully Local Processing** -- Audio is transcribed on your hardware using [whisper.cpp](https://github.com/ggerganov/whisper.cpp). No cloud APIs, no external services, no data exfiltration.
+- **Built-in Engine Setup** -- Download whisper-cli binaries and models directly from the plugin settings page on Linux. No manual installation needed for most users.
 - **Automatic Language Detection** -- Reads audio stream metadata to detect the spoken language and generate matching subtitles. Falls back to whisper's built-in language detection when tags are absent.
-- **GPU Acceleration** -- Supports Vulkan (Intel / AMD) and CUDA (NVIDIA) for significantly faster transcription.
-- **Admin Dashboard UI** -- Browse libraries, view items, and trigger subtitle generation directly from the Jellyfin admin panel.
-- **Scheduled Tasks** -- Enable automatic scanning so new media gets subtitles without manual intervention.
-- **Pluggable Provider Architecture** -- Built around an `ISubtitleProvider` interface. Whisper is the default; additional providers can be added.
+- **Forced Subtitles** -- Detect and transcribe only foreign-language dialogue (e.g., French lines in an English movie) via VAD-based speech segmentation and per-chunk language detection.
+- **Lyrics Generation (Experimental)** -- Generate `.lrc` lyrics files for music libraries via whisper transcription. Jellyfin picks up `.lrc` files automatically.
+- **GPU Acceleration** -- Supports CUDA (NVIDIA), Vulkan (Intel / AMD / NVIDIA), and ROCm (AMD) for significantly faster transcription.
+- **Priority Queue** -- Manual requests are queued with priority and processed before scheduled items. Queue persists across restarts.
+- **Real-time Progress** -- Live progress banner in the admin UI showing current item, phase (extracting audio, transcribing), per-file progress, and overall stats.
+- **Subtitle Resume** -- If transcription is interrupted, it resumes from the last timestamp rather than starting over.
+- **Admin Dashboard UI** -- Browse libraries, view items, manage the whisper engine, and trigger subtitle generation directly from the Jellyfin admin panel.
+- **Scheduled Tasks** -- Enable automatic scanning so new media gets subtitles without manual intervention. Runs daily at 2:00 AM and on startup by default.
 - **Per-Library Control** -- Choose which libraries are monitored for automatic subtitle generation.
-- **SRT Output** -- Generates standard `.srt` subtitle files placed alongside your media, automatically picked up by Jellyfin.
+- **Multiple Output Formats** -- Generates `.srt` subtitles, `.forced.generated.srt` forced subtitles, and `.lrc` lyrics, all placed alongside your media and auto-detected by Jellyfin.
 
 ## Prerequisites
 
@@ -32,8 +37,10 @@
 |---|---|
 | **Jellyfin** | 10.11.0 or later |
 | **FFmpeg** | Bundled with Jellyfin (`/usr/lib/jellyfin-ffmpeg/ffmpeg`) or available in `PATH`. Used to extract audio from media files. |
-| **whisper.cpp** | The `whisper-cli` binary. Either in `PATH` or configured via the plugin's **Whisper Binary Path** setting. See [Installing whisper.cpp](#installing-whispercpp) below. |
-| **Whisper Model** | A GGML model file (e.g., `ggml-base.bin`, `ggml-large-v3-turbo.bin`). Download from [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp). |
+| **whisper.cpp** | The `whisper-cli` binary. **On Linux, the plugin can download this automatically** from the settings page. Otherwise, install manually -- see [Installing whisper.cpp](#installing-whispercpp). |
+| **Whisper Model** | A GGML model file. **The plugin can download models automatically** from the settings page, or download manually from [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp). |
+
+> **Quick start (Linux):** After installing the plugin, go to **Dashboard** > **Plugins** > **WhisperSubs**. The **Whisper Engine** section lets you download both the binary and a model with one click each. The manual steps below are only needed for non-Linux platforms or custom setups.
 
 ## Installation
 
@@ -302,12 +309,15 @@ If you see `no GPU found` or `using CPU backend`, the binary was not built with 
 
 | Model | Size | Speed (CPU) | Speed (GPU) | Quality | Use Case |
 |---|---|---|---|---|---|
-| `ggml-base.bin` | 148 MB | Fast | Very fast | Good | Quick transcription, testing |
-| `ggml-medium.bin` | 1.5 GB | Moderate | Fast | Very good | Balanced quality/speed |
-| `ggml-large-v3-turbo.bin` | 1.6 GB | Slow | Fast | Excellent | Best accuracy, recommended with GPU |
-| `ggml-large-v3.bin` | 3.1 GB | Very slow | Moderate | Excellent | Maximum accuracy |
+| `ggml-large-v3-turbo-q5_0.bin` | 574 MB | Moderate | Fast | Excellent | **Recommended.** Best quality/size ratio. |
+| `ggml-large-v3-turbo.bin` | 1.6 GB | Slow | Fast | Excellent | Full-precision turbo. Slightly better quality, 3x larger. |
+| `ggml-medium-q5_0.bin` | 539 MB | Moderate | Fast | Very good | Similar size to turbo-q5 but slower and less accurate. |
+| `ggml-medium.bin` | 1.5 GB | Moderate | Fast | Very good | Full-precision medium model. |
+| `ggml-small.bin` | 488 MB | Fast | Very fast | Good | Faster inference, lower accuracy. |
+| `ggml-base.bin` | 148 MB | Fast | Very fast | Fair | Lightweight. Fast but noticeably less accurate. |
+| `ggml-tiny.bin` | 78 MB | Very fast | Very fast | Basic | Smallest model. Only for testing or constrained environments. |
 
-With GPU acceleration, `ggml-large-v3-turbo` offers the best quality-to-speed ratio.
+The Q5 quantized models offer nearly identical quality to their F16 counterparts at a fraction of the size. `ggml-large-v3-turbo-q5_0` is the default when downloading from the plugin settings page.
 
 ## Configuration
 
@@ -315,12 +325,14 @@ After installation, navigate to **Dashboard** > **Plugins** > **WhisperSubs** to
 
 | Setting | Description |
 |---|---|
-| **Subtitle Provider** | The transcription engine to use. Currently `Whisper` is available. |
-| **Whisper Binary Path** | Absolute path to the `whisper-cli` binary (e.g., `/opt/whisper/whisper-cli`). Leave empty to search `PATH`. |
-| **Whisper Model Path** | Absolute path to the GGML model file (e.g., `/opt/whisper/models/ggml-large-v3-turbo.bin`). |
 | **Default Language** | `Auto-detect` reads the language from each file's audio stream metadata and generates matching subtitles. Choose a specific language to force it for all transcriptions. |
+| **Subtitle Mode** | Full, Forced Only, or Full + Forced. See [Subtitle Modes](#subtitle-modes) below. |
 | **Enable Auto-Generation** | When enabled, the scheduled task will scan selected libraries and generate subtitles for items that lack them. |
 | **Enabled Libraries** | Select which libraries should be monitored for automatic subtitle generation. |
+| **Enable Lyrics Generation** | When enabled, music libraries are scanned and audio tracks receive `.lrc` lyrics files (experimental -- whisper is optimized for speech, not singing). |
+| **Whisper Binary Path** | *(Advanced)* Absolute path to the `whisper-cli` binary. Leave empty to use the auto-downloaded binary or search `PATH`. |
+| **Whisper Model Path** | *(Advanced)* Absolute path to the GGML model file. Leave empty to use the auto-downloaded model. |
+| **Whisper Thread Count** | *(Advanced)* Number of CPU threads for whisper inference. `0` = whisper default (4). Set to your CPU core count for faster transcription. |
 
 ### Subtitle Modes
 
@@ -351,23 +363,48 @@ The plugin supports three language modes:
 
 The plugin adds a dedicated page to the Jellyfin admin dashboard (accessible from **Dashboard** > **Plugins** > **WhisperSubs**, or from the main sidebar menu). From there you can:
 
-- **Configure** the plugin settings (provider, model, binary path, default language).
+- **Configure** the plugin settings (language, subtitle mode, binary/model paths, enabled libraries).
+- **Manage the whisper engine** -- download binaries (CPU / Vulkan / CUDA / ROCm) and models directly from the UI.
 - **Browse** all libraries and their items.
 - **See** which items already have subtitles (green check / orange cross).
 - **Select a language** for subtitle generation (auto-detect or any specific language).
 - **Generate** subtitles for individual items with a single click.
+- **Monitor progress** -- a live banner shows the current item, processing phase, and queue depth.
 
 ### REST API
 
-All endpoints require Jellyfin admin authentication.
+All endpoints require Jellyfin admin authentication. Setup endpoints additionally require elevated privileges.
+
+**Library & Items**
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/Plugins/WhisperSubs/Libraries` | List all media libraries |
-| `GET` | `/Plugins/WhisperSubs/Libraries/{libraryId}/Items` | List items in a library |
-| `POST` | `/Plugins/WhisperSubs/Items/{itemId}/Generate?language=auto` | Generate subtitles for a specific item |
+| `GET` | `/Plugins/WhisperSubs/Libraries/{libraryId}/Items` | List items in a library (supports `startIndex` and `limit`) |
+| `POST` | `/Plugins/WhisperSubs/Items/{itemId}/Generate?language=auto` | Queue subtitle generation (priority) |
 | `GET` | `/Plugins/WhisperSubs/Items/{itemId}/AudioLanguages` | Detect audio languages in a media file |
 | `GET` | `/Plugins/WhisperSubs/Items/{itemId}/Status` | Check subtitle generation status |
+
+**Queue & Task**
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/Plugins/WhisperSubs/Queue` | Queue status: current item, progress, phase, remaining count |
+| `POST` | `/Plugins/WhisperSubs/RunTask` | Trigger the scheduled subtitle generation task |
+| `GET` | `/Plugins/WhisperSubs/Models` | List downloaded models with active/size info |
+
+**Engine Setup** (requires elevated privileges)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/Plugins/WhisperSubs/Setup/Status` | Binary/model status, GPU detection, platform info |
+| `GET` | `/Plugins/WhisperSubs/Setup/BinaryVariants` | Available binary variants for this platform |
+| `POST` | `/Plugins/WhisperSubs/Setup/DownloadBinary?variant=cpu` | Download whisper-cli binary |
+| `GET` | `/Plugins/WhisperSubs/Setup/AvailableModels` | Model catalog with sizes and descriptions |
+| `POST` | `/Plugins/WhisperSubs/Setup/DownloadModel?name=...` | Download a model from HuggingFace |
+| `GET` | `/Plugins/WhisperSubs/Setup/Progress` | Download progress (percent, message, errors) |
+| `POST` | `/Plugins/WhisperSubs/Setup/Models/{filename}/Activate` | Set a downloaded model as active |
+| `DELETE` | `/Plugins/WhisperSubs/Setup/Models/{filename}` | Delete a downloaded model |
 
 The `language` parameter accepts `auto` (default), or any ISO 639-1 code (`en`, `es`, `fr`, etc.).
 
@@ -384,11 +421,14 @@ A scheduled task named **Generate Subtitles** is registered under the **WhisperS
 
 1. **Language Detection** -- FFprobe reads the audio stream metadata to determine the spoken language(s).
 2. **Audio Extraction** -- FFmpeg extracts a 16 kHz mono WAV track from the media file.
-3. **Transcription** -- The extracted audio is passed to whisper.cpp, which produces an SRT subtitle file.
-4. **Output** -- The `.srt` file is saved alongside the original media (e.g., `Movie.es.generated.srt`).
-5. **Metadata Refresh** -- The item's metadata is refreshed so Jellyfin picks up the new subtitle immediately.
+3. **Transcription** -- The extracted audio is passed to whisper.cpp, which produces an SRT subtitle file. For forced subtitles, the audio is first segmented via VAD (silence detection), then each ~30-second chunk is language-classified before selectively transcribing only foreign-language segments.
+4. **Output** -- Files are saved alongside the original media:
+   - Full subtitles: `Movie.es.generated.srt`
+   - Forced subtitles: `Movie.es.forced.generated.srt`
+   - Lyrics: `Song.lrc`
+5. **Metadata Refresh** -- The item's metadata is refreshed so Jellyfin picks up the new files immediately.
 
-Temporary audio files are cleaned up automatically after processing.
+Temporary audio files are cleaned up automatically after processing. Items that have already been processed are tracked with marker files (`.noforeignlang`) to avoid redundant work on subsequent scans.
 
 ## Roadmap
 
