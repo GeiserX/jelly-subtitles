@@ -184,6 +184,82 @@ namespace WhisperSubs.Api
         }
 
         /// <summary>
+        /// Enqueues subtitle generation for all child items of a container (Series, Season, MusicAlbum).
+        /// For leaf items (Movie, Episode, Audio), behaves like the single-item endpoint.
+        /// </summary>
+        [HttpPost("Items/{itemId}/GenerateAll")]
+        public ActionResult GenerateAllSubtitles(
+            [FromRoute] string itemId,
+            [FromQuery] string? language = null)
+        {
+            try
+            {
+                var parent = _libraryManager.GetItemById(Guid.Parse(itemId));
+                if (parent == null)
+                {
+                    return NotFound(new { error = "Item not found" });
+                }
+
+                var config = Plugin.Instance.Configuration;
+                var targetLanguage = language ?? config.DefaultLanguage;
+
+                // Resolve leaf items (Video / Audio) from the container
+                var typeStr = config.EnableLyricsGeneration ? "Movie,Episode,Audio" : "Movie,Episode";
+                var includeTypes = GetBaseItemKinds(typeStr);
+                var children = _libraryManager.GetItemList(new InternalItemsQuery
+                {
+                    ParentId = parent.Id,
+                    IncludeItemTypes = includeTypes,
+                    Recursive = true
+                });
+
+                // If this IS a leaf item itself, include it directly
+                if (children.Count == 0 && (parent is Video || (parent is MediaBrowser.Controller.Entities.Audio.Audio && config.EnableLyricsGeneration)))
+                {
+                    children = new List<BaseItem> { parent };
+                }
+
+                if (children.Count == 0)
+                {
+                    return BadRequest(new { error = "No supported media items found under this item." });
+                }
+
+                var queue = SubtitleQueueService.Instance;
+                foreach (var child in children)
+                {
+                    queue.Enqueue(child, targetLanguage);
+                }
+
+                _logger.LogInformation(
+                    "Queued {Count} items for subtitle generation under {ParentName} [{Language}]",
+                    children.Count, parent.Name, targetLanguage);
+
+                // Ensure the background drain worker is running
+                var manager = GetSubtitleManager();
+                var provider = new WhisperProvider(
+                    _loggerFactory.CreateLogger<WhisperProvider>(),
+                    config.WhisperModelPath,
+                    config.WhisperBinaryPath,
+                    config.WhisperThreadCount);
+                queue.EnsureDraining(manager, provider, _logger, CancellationToken.None);
+
+                return Accepted(new
+                {
+                    message = $"Queued {children.Count} item(s) for subtitle generation",
+                    parent = parent.Name,
+                    count = children.Count,
+                    language = targetLanguage,
+                    queueSize = queue.PriorityCount
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error queuing batch generation for item {ItemId}", itemId);
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Gets the current queue status.
         /// </summary>
         [HttpGet("Queue")]

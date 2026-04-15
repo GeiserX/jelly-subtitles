@@ -20,7 +20,9 @@
 
   <ItemGroup>
     <None Remove="Web\configPage.html" />
+    <None Remove="Web\whisperSubs.js" />
     <EmbeddedResource Include="Web\configPage.html" />
+    <EmbeddedResource Include="Web\whisperSubs.js" />
   </ItemGroup>
 
   <ItemGroup>
