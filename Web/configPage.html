@@ -10,7 +10,11 @@
                 <h1>WhisperSubs</h1>
 
                 <!-- Whisper Engine Management -->
-                <h2>Whisper Engine</h2>
+                <div style="display:flex; align-items:baseline; gap:0.8em;">
+                    <h2 style="margin:0;">Whisper Engine</h2>
+                    <a href="https://geiserx.github.io/whisper-subs/docs/setup/" target="_blank" rel="noopener noreferrer"
+                       style="font-size:0.85em; color:#52B54B; text-decoration:none;">Setup guide &rarr;</a>
+                </div>
 
                 <div id="engineBinaryPanel" style="background:rgba(0,0,0,0.15); border-radius:6px; padding:1em; margin-bottom:1em;">
                     <div style="display:flex; align-items:center; gap:0.5em; margin-bottom:0.5em;">
@@ -325,31 +329,13 @@
                             if (gpuInfo && gpuInfo.RecommendedVariant) {
                                 select.value = gpuInfo.RecommendedVariant;
                             }
-                            var hint = document.querySelector('#engineGpuHint');
-                            if (gpuInfo) {
-                                if (gpuInfo.HasNvidia && gpuInfo.HasCudaLibrary) {
-                                    hint.textContent = 'NVIDIA GPU detected \u2014 CUDA 12 variant recommended.';
-                                    hint.style.color = '#52B54B';
-                                } else if (gpuInfo.HasNvidia && !gpuInfo.HasCudaLibrary) {
-                                    hint.textContent = 'NVIDIA GPU detected but CUDA libraries missing. Install nvidia-cuda-toolkit or use CPU variant.';
-                                    hint.style.color = '#CC7B19';
-                                } else if (gpuInfo.HasAmdGpu && gpuInfo.HasRocmLibrary) {
-                                    hint.textContent = 'AMD GPU detected \u2014 ROCm variant recommended.';
-                                    hint.style.color = '#52B54B';
-                                } else if (gpuInfo.HasAmdGpu && !gpuInfo.HasRocmLibrary) {
-                                    hint.textContent = 'AMD GPU detected but ROCm libraries missing.';
-                                    hint.style.color = '#CC7B19';
-                                } else if (gpuInfo.HasRenderDevice && gpuInfo.HasVulkanLibrary) {
-                                    hint.textContent = 'GPU detected \u2014 Vulkan variant recommended.';
-                                    hint.style.color = '#52B54B';
-                                } else if (gpuInfo.HasRenderDevice && !gpuInfo.HasVulkanLibrary) {
-                                    hint.textContent = 'GPU detected but Vulkan library missing.';
-                                    hint.style.color = '#CC7B19';
-                                } else {
-                                    hint.textContent = 'No GPU detected. CPU variant selected.';
-                                    hint.style.color = '';
-                                }
-                            }
+                            // Store gpuInfo for variant change handler
+                            WhisperSubsConfig._gpuInfo = gpuInfo;
+                            // Update hint for initially selected variant
+                            WhisperSubsConfig.updateVariantHint();
+                            // Listen for variant changes
+                            select.removeEventListener('change', WhisperSubsConfig.updateVariantHint);
+                            select.addEventListener('change', WhisperSubsConfig.updateVariantHint);
                         })
                         .catch(function (err) {
                             console.error('WhisperSubs: error loading binary variants', err);
@@ -631,6 +617,59 @@
                     if (binBtn) { binBtn.disabled = false; binBtn.innerHTML = '<span>Download</span>'; }
                     if (modBtn) { modBtn.disabled = false; modBtn.innerHTML = '<span>Download</span>'; }
                     WhisperSubsConfig.updateModelDownloadState();
+                },
+
+                _gpuInfo: null,
+
+                updateVariantHint: function () {
+                    var gpuInfo = WhisperSubsConfig._gpuInfo;
+                    var hint = document.querySelector('#engineGpuHint');
+                    var variant = document.querySelector('#engineBinaryVariant').value || 'cpu';
+                    if (!gpuInfo) { hint.textContent = ''; hint.style.color = ''; return; }
+
+                    if (variant === 'cuda12') {
+                        if (gpuInfo.HasNvidia && gpuInfo.HasCudaLibrary) {
+                            hint.textContent = 'NVIDIA GPU detected \u2014 CUDA 12 variant recommended.';
+                            hint.style.color = '#52B54B';
+                        } else if (gpuInfo.HasNvidia) {
+                            hint.textContent = 'NVIDIA GPU detected but CUDA libraries not found. Install nvidia-cuda-toolkit or use CPU variant.';
+                            hint.style.color = '#CC7B19';
+                        } else {
+                            hint.textContent = 'No NVIDIA GPU detected. This variant requires an NVIDIA GPU with CUDA support.';
+                            hint.style.color = '#CC7B19';
+                        }
+                    } else if (variant === 'rocm') {
+                        if (gpuInfo.HasAmdGpu && gpuInfo.HasRocmLibrary) {
+                            hint.textContent = 'AMD GPU detected \u2014 ROCm variant recommended.';
+                            hint.style.color = '#52B54B';
+                        } else if (gpuInfo.HasAmdGpu) {
+                            hint.textContent = 'AMD GPU detected but ROCm libraries not found.';
+                            hint.style.color = '#CC7B19';
+                        } else {
+                            hint.textContent = 'No AMD GPU detected. This variant requires an AMD GPU with ROCm support.';
+                            hint.style.color = '#CC7B19';
+                        }
+                    } else if (variant === 'vulkan') {
+                        if (gpuInfo.HasRenderDevice && gpuInfo.HasVulkanLibrary) {
+                            hint.textContent = 'GPU detected \u2014 Vulkan variant ready.';
+                            hint.style.color = '#52B54B';
+                        } else if (gpuInfo.HasRenderDevice) {
+                            hint.textContent = 'GPU detected but Vulkan library not found. May need libvulkan1 installed.';
+                            hint.style.color = '#CC7B19';
+                        } else {
+                            hint.textContent = 'No GPU render device detected. This variant requires a GPU with Vulkan support.';
+                            hint.style.color = '#CC7B19';
+                        }
+                    } else {
+                        // CPU
+                        if (gpuInfo.HasNvidia || gpuInfo.HasAmdGpu || gpuInfo.HasRenderDevice) {
+                            hint.textContent = 'GPU detected \u2014 consider a GPU variant for faster transcription.';
+                            hint.style.color = '#CC7B19';
+                        } else {
+                            hint.textContent = 'No GPU detected. CPU variant selected.';
+                            hint.style.color = '';
+                        }
+                    }
                 },
 
                 // Full language list — matches DefaultLanguage selector exactly
