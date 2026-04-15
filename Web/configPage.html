@@ -9,53 +9,57 @@
             <div class="content-primary">
                 <h1>WhisperSubs</h1>
 
-                <!-- Setup Wizard Banner -->
-                <div id="setupBanner" style="display:none; background:rgba(82,181,75,0.08); border:1px solid rgba(82,181,75,0.3); border-radius:8px; padding:1.5em; margin-bottom:2em;">
-                    <h2 style="margin-top:0;">Initial Setup</h2>
-                    <p style="margin-bottom:1em;">WhisperSubs needs the <strong>whisper-cli</strong> binary and a language model. Click <em>Quick Setup</em> to download both automatically, or set them up individually.</p>
+                <!-- Whisper Engine Management -->
+                <h2>Whisper Engine</h2>
 
-                    <div id="setupStep1" style="margin-bottom:1em; padding:0.8em; background:rgba(0,0,0,0.15); border-radius:6px;">
-                        <span id="binaryStatusIcon" style="font-size:1.2em;">&#9744;</span>
-                        <strong>whisper-cli binary</strong>
-                        <span id="binaryStatusText" style="opacity:0.8; margin-left:0.5em;"></span>
-                        <br/>
-                        <div style="display:flex; gap:0.5em; align-items:flex-end; flex-wrap:wrap; margin-top:0.5em;">
-                            <select is="emby-select" id="selectBinaryVariant" style="flex:1; min-width:220px; margin:0;">
-                                <option value="cpu">CPU Only</option>
-                            </select>
-                            <button is="emby-button" id="btnDownloadBinary" class="raised">
-                                <span>Download Binary</span>
-                            </button>
-                        </div>
-                        <div id="gpuDetectionHint" style="margin-top:0.4em; font-size:0.85em; opacity:0.7;"></div>
+                <div id="engineBinaryPanel" style="background:rgba(0,0,0,0.15); border-radius:6px; padding:1em; margin-bottom:1em;">
+                    <div style="display:flex; align-items:center; gap:0.5em; margin-bottom:0.5em;">
+                        <span id="engineBinaryIcon" style="font-size:1.2em;">&#9744;</span>
+                        <strong>whisper-cli Binary</strong>
+                        <span id="engineBinaryText" style="opacity:0.8; margin-left:0.3em; font-size:0.9em;"></span>
                     </div>
-
-                    <div id="setupStep2" style="margin-bottom:1em; padding:0.8em; background:rgba(0,0,0,0.15); border-radius:6px;">
-                        <span id="modelStatusIcon" style="font-size:1.2em;">&#9744;</span>
-                        <strong>Language Model</strong>
-                        <span id="modelStatusText" style="opacity:0.8; margin-left:0.5em;"></span>
-                        <br/>
-                        <div style="display:flex; gap:0.5em; align-items:flex-end; flex-wrap:wrap; margin-top:0.5em;">
-                            <select is="emby-select" id="selectDownloadModel" style="flex:1; min-width:250px; margin:0;">
-                            </select>
-                            <button is="emby-button" id="btnDownloadModel" class="raised">
-                                <span>Download Model</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div style="margin-bottom:1em;">
-                        <button is="emby-button" id="btnQuickSetup" class="raised button-submit" style="padding:0.6em 2em;">
-                            <span>Quick Setup (Download Both)</span>
+                    <div style="display:flex; gap:0.5em; align-items:flex-end; flex-wrap:wrap;">
+                        <select is="emby-select" id="engineBinaryVariant" style="flex:1; min-width:220px; margin:0;">
+                            <option value="cpu">CPU Only</option>
+                        </select>
+                        <button is="emby-button" id="btnEngineDownloadBinary" class="raised">
+                            <span>Download</span>
                         </button>
                     </div>
+                    <div id="engineGpuHint" class="fieldDescription" style="margin-top:0.4em;"></div>
+                </div>
 
-                    <div id="setupProgressContainer" style="display:none; margin-top:1em;">
-                        <div style="background:rgba(0,0,0,0.3); border-radius:4px; overflow:hidden; height:24px;">
-                            <div id="setupProgressBar" style="background:#52B54B; height:100%; width:0%; transition:width 0.3s ease;"></div>
-                        </div>
-                        <div id="setupProgressText" style="margin-top:0.5em; opacity:0.8; font-size:0.9em;"></div>
+                <div id="engineModelPanel" style="background:rgba(0,0,0,0.15); border-radius:6px; padding:1em; margin-bottom:1em;">
+                    <div style="display:flex; align-items:center; gap:0.5em; margin-bottom:0.5em;">
+                        <span id="engineModelIcon" style="font-size:1.2em;">&#9744;</span>
+                        <strong>Language Models</strong>
                     </div>
+                    <table id="engineModelsTable" class="tblMediaInfo" style="width:100%; margin-bottom:1em; display:none;">
+                        <thead>
+                            <tr>
+                                <th style="text-align:left;">Model</th>
+                                <th style="text-align:right;">Size</th>
+                                <th style="text-align:center;">Status</th>
+                                <th style="text-align:right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="engineModelsBody"></tbody>
+                    </table>
+                    <div style="display:flex; gap:0.5em; align-items:flex-end; flex-wrap:wrap;">
+                        <select is="emby-select" id="engineModelSelect" style="flex:1; min-width:250px; margin:0;">
+                        </select>
+                        <button is="emby-button" id="btnEngineDownloadModel" class="raised">
+                            <span>Download</span>
+                        </button>
+                    </div>
+                    <div id="engineModelHint" class="fieldDescription" style="margin-top:0.4em;"></div>
+                </div>
+
+                <div id="engineProgressContainer" style="display:none; margin-bottom:1.5em;">
+                    <div style="background:rgba(0,0,0,0.3); border-radius:4px; overflow:hidden; height:24px;">
+                        <div id="engineProgressBar" style="background:#52B54B; height:100%; width:0%; transition:width 0.3s ease;"></div>
+                    </div>
+                    <div id="engineProgressText" class="fieldDescription" style="margin-top:0.5em;"></div>
                 </div>
 
                 <form class="whisperSubsConfigurationForm">
@@ -175,14 +179,6 @@
                             <div class="fieldDescription">Absolute path to the Whisper model file. You can type a path or select from detected models below.</div>
                         </div>
 
-                        <div class="selectContainer" id="modelPickerContainer" style="display:none;">
-                            <label class="selectLabel" for="selectModel">Detected Models</label>
-                            <select is="emby-select" id="selectModel">
-                                <option value="">Loading models...</option>
-                            </select>
-                            <div class="fieldDescription">Models found in the same directory as the configured model path. Selecting one updates the path above.</div>
-                        </div>
-
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="txtWhisperThreadCount">Whisper Thread Count</label>
                             <input type="number" id="txtWhisperThreadCount" name="WhisperThreadCount" class="emby-input" min="0" max="64" step="1" />
@@ -261,123 +257,50 @@
                 currentTotalCount: 0,
                 currentLibraryId: '',
                 _progressPollTimer: null,
-                _quickSetupPhase: null,
                 _queuePollTimer: null,
                 _queueHideTimer: null,
 
-                // ── Setup wizard ─────────────────────────────────────────
+                // ── Engine management ────────────────────────────────────
+                _engineStatus: null,
+                _catalogModels: [],
 
-                checkSetupStatus: function () {
+                loadEngine: function () {
                     WhisperSubsConfig.ajaxGet(ApiClient.getUrl('Plugins/WhisperSubs/Setup/Status'))
                         .then(function (s) {
-                            var banner = document.querySelector('#setupBanner');
-                            WhisperSubsConfig.loadDownloadableModels();
-                            WhisperSubsConfig.loadBinaryVariants(s.Gpu);
-
-                            if (s.SetupComplete) {
-                                banner.style.display = 'none';
-                                return;
-                            }
-                            banner.style.display = '';
-
-                            var binIcon = document.querySelector('#binaryStatusIcon');
-                            var binText = document.querySelector('#binaryStatusText');
-                            var binBtn = document.querySelector('#btnDownloadBinary');
-                            var binSel = document.querySelector('#selectBinaryVariant');
-                            if (s.BinaryFound && !s.BinaryFoundInPath) {
-                                binIcon.innerHTML = '&#9745;';
-                                binIcon.style.color = '#52B54B';
-                                binText.textContent = s.BinaryPath || 'found';
-                                binBtn.style.display = 'none';
-                                binSel.style.display = 'none';
-                            } else if (s.BinaryFoundInPath) {
-                                binIcon.innerHTML = '&#9745;';
-                                binIcon.style.color = '#CC7B19';
-                                binText.textContent = 'Found in PATH (CPU). Download a GPU-accelerated variant below:';
-                                binBtn.style.display = '';
-                                binBtn.disabled = false;
-                                binBtn.innerHTML = '<span>Download Binary</span>';
-                                binSel.style.display = '';
-                            } else {
-                                binIcon.innerHTML = '&#9744;';
-                                binIcon.style.color = '#CC7B19';
-                                binText.textContent = 'Not found (' + s.Platform + ')';
-                                binBtn.style.display = '';
-                                binBtn.disabled = false;
-                                binBtn.innerHTML = '<span>Download Binary</span>';
-                                binSel.style.display = '';
-                            }
-
-                            var hint = document.querySelector('#gpuDetectionHint');
-                            if (s.Gpu) {
-                                if (s.Gpu.HasNvidia && s.Gpu.HasCudaLibrary) {
-                                    hint.textContent = 'NVIDIA GPU detected — CUDA 12 variant recommended for fastest transcription.';
-                                    hint.style.color = '#52B54B';
-                                } else if (s.Gpu.HasNvidia && !s.Gpu.HasCudaLibrary) {
-                                    hint.textContent = 'NVIDIA GPU detected but CUDA libraries are missing in this container. CPU variant selected. To use CUDA, install nvidia-cuda-toolkit or pass the NVIDIA runtime to your container.';
-                                    hint.style.color = '#CC7B19';
-                                } else if (s.Gpu.HasAmdGpu && s.Gpu.HasRocmLibrary) {
-                                    hint.textContent = 'AMD GPU detected — ROCm variant recommended for GPU-accelerated transcription.';
-                                    hint.style.color = '#52B54B';
-                                } else if (s.Gpu.HasAmdGpu && !s.Gpu.HasRocmLibrary) {
-                                    hint.textContent = 'AMD GPU detected but ROCm libraries are missing in this container. CPU variant selected. To use ROCm, install the ROCm runtime in your Docker image.';
-                                    hint.style.color = '#CC7B19';
-                                } else if (s.Gpu.HasRenderDevice && s.Gpu.HasVulkanLibrary) {
-                                    hint.textContent = 'GPU render device detected — Vulkan variant recommended.';
-                                    hint.style.color = '#52B54B';
-                                } else if (s.Gpu.HasRenderDevice && !s.Gpu.HasVulkanLibrary) {
-                                    hint.textContent = 'GPU detected but Vulkan library (libvulkan.so.1) is missing in this container. CPU variant selected. To use Vulkan, install libvulkan1 in your Docker image.';
-                                    hint.style.color = '#CC7B19';
-                                } else {
-                                    hint.textContent = 'No GPU detected. CPU variant selected (works on any system).';
-                                    hint.style.color = '';
-                                }
-                            }
-
-                            var modIcon = document.querySelector('#modelStatusIcon');
-                            var modText = document.querySelector('#modelStatusText');
-                            var modBtn = document.querySelector('#btnDownloadModel');
-                            var modSel = document.querySelector('#selectDownloadModel');
-                            if (s.ModelFound) {
-                                modIcon.innerHTML = '&#9745;';
-                                modIcon.style.color = '#52B54B';
-                                modText.textContent = s.ModelPath ? s.ModelPath.split('/').pop() : 'found';
-                                modBtn.style.display = 'none';
-                                modSel.style.display = 'none';
-                            } else {
-                                modIcon.innerHTML = '&#9744;';
-                                modIcon.style.color = '#CC7B19';
-                                modText.textContent = 'Not found';
-                                modBtn.style.display = '';
-                                modBtn.disabled = false;
-                                modBtn.innerHTML = '<span>Download Model</span>';
-                                modSel.style.display = '';
-                            }
-
-                            var qsBtn = document.querySelector('#btnQuickSetup');
-                            qsBtn.disabled = false;
-                            if (s.BinaryFound && s.ModelFound) {
-                                qsBtn.style.display = 'none';
-                            } else if (s.BinaryFound || s.ModelFound) {
-                                qsBtn.style.display = '';
-                                qsBtn.innerHTML = s.BinaryFound
-                                    ? '<span>Download Model</span>'
-                                    : '<span>Download Binary</span>';
-                            } else {
-                                qsBtn.style.display = '';
-                                qsBtn.innerHTML = '<span>Quick Setup (Download Both)</span>';
-                            }
+                            WhisperSubsConfig._engineStatus = s;
+                            WhisperSubsConfig.renderBinaryStatus(s);
+                            WhisperSubsConfig.loadEngineVariants(s.Gpu);
+                            WhisperSubsConfig.loadEngineCatalog();
+                            WhisperSubsConfig.renderDownloadedModels();
                         })
                         .catch(function (err) {
-                            console.error('WhisperSubs: setup status check failed', err);
+                            console.error('WhisperSubs: engine status check failed', err);
                         });
                 },
 
-                loadBinaryVariants: function (gpuInfo) {
+                renderBinaryStatus: function (status) {
+                    var icon = document.querySelector('#engineBinaryIcon');
+                    var text = document.querySelector('#engineBinaryText');
+                    if (status.BinaryFound && !status.BinaryFoundInPath) {
+                        icon.innerHTML = '&#9745;';
+                        icon.style.color = '#52B54B';
+                        text.textContent = status.BinaryPath ? status.BinaryPath.split('/').pop() : 'Installed';
+                    } else if (status.BinaryFoundInPath) {
+                        icon.innerHTML = '&#9745;';
+                        icon.style.color = '#CC7B19';
+                        text.textContent = 'Found in PATH (CPU). Download a GPU variant for faster transcription.';
+                    } else {
+                        icon.innerHTML = '&#9744;';
+                        icon.style.color = '#CC7B19';
+                        text.textContent = 'Not installed';
+                    }
+                },
+
+                loadEngineVariants: function (gpuInfo) {
                     WhisperSubsConfig.ajaxGet(ApiClient.getUrl('Plugins/WhisperSubs/Setup/BinaryVariants'))
                         .then(function (variants) {
-                            var select = document.querySelector('#selectBinaryVariant');
-                            var btn = document.querySelector('#btnDownloadBinary');
+                            var select = document.querySelector('#engineBinaryVariant');
+                            var btn = document.querySelector('#btnEngineDownloadBinary');
                             select.innerHTML = '';
                             if (!variants || !Array.isArray(variants) || variants.length === 0) {
                                 var opt = document.createElement('option');
@@ -387,8 +310,8 @@
                                 select.disabled = true;
                                 btn.disabled = true;
                                 btn.title = 'Prebuilt binaries are only available for Linux. Install whisper-cli manually.';
-                                var hint = document.querySelector('#gpuDetectionHint');
-                                hint.textContent = 'Auto-download is only available for Linux. Please install whisper-cli manually and set the path below.';
+                                var hint = document.querySelector('#engineGpuHint');
+                                hint.textContent = 'Auto-download is only available for Linux. Install whisper-cli manually and set the path in Advanced settings.';
                                 hint.style.color = '#CC7B19';
                                 return;
                             }
@@ -402,98 +325,260 @@
                             if (gpuInfo && gpuInfo.RecommendedVariant) {
                                 select.value = gpuInfo.RecommendedVariant;
                             }
+                            var hint = document.querySelector('#engineGpuHint');
+                            if (gpuInfo) {
+                                if (gpuInfo.HasNvidia && gpuInfo.HasCudaLibrary) {
+                                    hint.textContent = 'NVIDIA GPU detected \u2014 CUDA 12 variant recommended.';
+                                    hint.style.color = '#52B54B';
+                                } else if (gpuInfo.HasNvidia && !gpuInfo.HasCudaLibrary) {
+                                    hint.textContent = 'NVIDIA GPU detected but CUDA libraries missing. Install nvidia-cuda-toolkit or use CPU variant.';
+                                    hint.style.color = '#CC7B19';
+                                } else if (gpuInfo.HasAmdGpu && gpuInfo.HasRocmLibrary) {
+                                    hint.textContent = 'AMD GPU detected \u2014 ROCm variant recommended.';
+                                    hint.style.color = '#52B54B';
+                                } else if (gpuInfo.HasAmdGpu && !gpuInfo.HasRocmLibrary) {
+                                    hint.textContent = 'AMD GPU detected but ROCm libraries missing.';
+                                    hint.style.color = '#CC7B19';
+                                } else if (gpuInfo.HasRenderDevice && gpuInfo.HasVulkanLibrary) {
+                                    hint.textContent = 'GPU detected \u2014 Vulkan variant recommended.';
+                                    hint.style.color = '#52B54B';
+                                } else if (gpuInfo.HasRenderDevice && !gpuInfo.HasVulkanLibrary) {
+                                    hint.textContent = 'GPU detected but Vulkan library missing.';
+                                    hint.style.color = '#CC7B19';
+                                } else {
+                                    hint.textContent = 'No GPU detected. CPU variant selected.';
+                                    hint.style.color = '';
+                                }
+                            }
                         })
                         .catch(function (err) {
                             console.error('WhisperSubs: error loading binary variants', err);
                         });
                 },
 
-                loadDownloadableModels: function () {
+                loadEngineCatalog: function () {
                     WhisperSubsConfig.ajaxGet(ApiClient.getUrl('Plugins/WhisperSubs/Setup/AvailableModels'))
                         .then(function (models) {
-                            var select = document.querySelector('#selectDownloadModel');
-                            select.innerHTML = '';
-                            if (!models || !Array.isArray(models)) return;
-                            models.forEach(function (m) {
-                                var opt = document.createElement('option');
-                                opt.value = m.FileName;
-                                var sizeLabel = m.SizeMB >= 1024
-                                    ? (m.SizeMB / 1024).toFixed(1) + ' GB'
-                                    : m.SizeMB + ' MB';
-                                opt.textContent = m.DisplayName + ' (' + sizeLabel + ')';
-                                if (m.IsRecommended) opt.textContent += ' \u2605';
-                                select.appendChild(opt);
+                            WhisperSubsConfig._catalogModels = models || [];
+                        })
+                        .catch(function (err) {
+                            console.error('WhisperSubs: error loading model catalog', err);
+                        });
+                },
+
+                updateModelCatalogDropdown: function (downloadedNames) {
+                    var select = document.querySelector('#engineModelSelect');
+                    var btn = document.querySelector('#btnEngineDownloadModel');
+                    select.innerHTML = '';
+                    var catalog = WhisperSubsConfig._catalogModels;
+                    downloadedNames = downloadedNames || [];
+
+                    if (catalog && Array.isArray(catalog)) {
+                        catalog.forEach(function (m) {
+                            var nameNoExt = m.FileName.replace(/\.bin$/, '');
+                            if (downloadedNames.indexOf(nameNoExt) >= 0) return;
+                            var opt = document.createElement('option');
+                            opt.value = m.FileName;
+                            var sizeLabel = m.SizeMB >= 1024
+                                ? (m.SizeMB / 1024).toFixed(1) + ' GB'
+                                : m.SizeMB + ' MB';
+                            opt.textContent = m.DisplayName + ' (' + sizeLabel + ')';
+                            if (m.IsRecommended) opt.textContent += ' \u2605';
+                            select.appendChild(opt);
+                        });
+                    }
+
+                    if (select.options.length === 0) {
+                        var opt = document.createElement('option');
+                        opt.value = '';
+                        opt.textContent = 'All available models downloaded';
+                        select.appendChild(opt);
+                        btn.disabled = true;
+                    }
+
+                    // Select recommended if available
+                    var rec = catalog.find(function (m) {
+                        return m.IsRecommended && downloadedNames.indexOf(m.FileName.replace(/\.bin$/, '')) < 0;
+                    });
+                    if (rec) select.value = rec.FileName;
+
+                    // Enforce binary-first rule
+                    WhisperSubsConfig.updateModelDownloadState();
+                },
+
+                updateModelDownloadState: function () {
+                    var btn = document.querySelector('#btnEngineDownloadModel');
+                    var hint = document.querySelector('#engineModelHint');
+                    var status = WhisperSubsConfig._engineStatus;
+                    if (!status || (!status.BinaryFound && !status.BinaryFoundInPath)) {
+                        btn.disabled = true;
+                        hint.textContent = 'Download the whisper-cli binary first.';
+                        hint.style.color = '#CC7B19';
+                    } else {
+                        // Only re-enable if catalog has items
+                        var select = document.querySelector('#engineModelSelect');
+                        if (select.options.length > 0 && select.options[0].value !== '') {
+                            btn.disabled = false;
+                        }
+                        hint.textContent = '';
+                        hint.style.color = '';
+                    }
+                },
+
+                renderDownloadedModels: function () {
+                    WhisperSubsConfig.ajaxGet(ApiClient.getUrl('Plugins/WhisperSubs/Models'))
+                        .then(function (models) {
+                            var table = document.querySelector('#engineModelsTable');
+                            var tbody = document.querySelector('#engineModelsBody');
+                            var icon = document.querySelector('#engineModelIcon');
+
+                            if (!models || !Array.isArray(models) || models.length === 0) {
+                                table.style.display = 'none';
+                                icon.innerHTML = '&#9744;';
+                                icon.style.color = '#CC7B19';
+                                WhisperSubsConfig.updateModelCatalogDropdown([]);
+                                return;
+                            }
+
+                            icon.innerHTML = '&#9745;';
+                            icon.style.color = '#52B54B';
+                            table.style.display = '';
+                            tbody.innerHTML = '';
+
+                            var downloadedNames = models.map(function (m) { return m.Name; });
+
+                            models.forEach(function (model) {
+                                var row = document.createElement('tr');
+
+                                var nameCell = document.createElement('td');
+                                nameCell.textContent = model.Name;
+
+                                var sizeCell = document.createElement('td');
+                                sizeCell.style.textAlign = 'right';
+                                var sizeMB = Math.round(model.SizeMB);
+                                sizeCell.textContent = sizeMB >= 1024
+                                    ? (sizeMB / 1024).toFixed(1) + ' GB'
+                                    : sizeMB + ' MB';
+
+                                var statusCell = document.createElement('td');
+                                statusCell.style.textAlign = 'center';
+                                statusCell.innerHTML = model.IsActive
+                                    ? '<span style="color:#52B54B;">&#10003; Active</span>'
+                                    : '<span style="opacity:0.5;">\u2014</span>';
+
+                                var actionsCell = document.createElement('td');
+                                actionsCell.style.textAlign = 'right';
+                                actionsCell.style.whiteSpace = 'nowrap';
+
+                                if (!model.IsActive) {
+                                    var useBtn = document.createElement('button');
+                                    useBtn.setAttribute('is', 'emby-button');
+                                    useBtn.className = 'raised';
+                                    useBtn.style.marginRight = '0.3em';
+                                    useBtn.innerHTML = '<span>Use</span>';
+                                    useBtn.onclick = (function (fn) {
+                                        return function () { WhisperSubsConfig.activateModel(fn); };
+                                    })(model.FileName);
+                                    actionsCell.appendChild(useBtn);
+
+                                    if (models.length > 1) {
+                                        var delBtn = document.createElement('button');
+                                        delBtn.setAttribute('is', 'emby-button');
+                                        delBtn.className = 'raised';
+                                        delBtn.innerHTML = '<span>Delete</span>';
+                                        delBtn.onclick = (function (fn, name) {
+                                            return function () { WhisperSubsConfig.deleteModel(fn, name); };
+                                        })(model.FileName, model.Name);
+                                        actionsCell.appendChild(delBtn);
+                                    }
+                                }
+
+                                row.appendChild(nameCell);
+                                row.appendChild(sizeCell);
+                                row.appendChild(statusCell);
+                                row.appendChild(actionsCell);
+                                tbody.appendChild(row);
                             });
-                            var rec = models.find(function (m) { return m.IsRecommended; });
-                            if (rec) select.value = rec.FileName;
+
+                            WhisperSubsConfig.updateModelCatalogDropdown(downloadedNames);
                         })
                         .catch(function (err) {
-                            console.error('WhisperSubs: error loading downloadable models', err);
+                            console.error('WhisperSubs: error loading downloaded models', err);
                         });
                 },
 
-                startBinaryDownload: function () {
-                    var variant = document.querySelector('#selectBinaryVariant').value || 'cpu';
-                    var btn = document.querySelector('#btnDownloadBinary');
-                    btn.disabled = true;
-                    btn.innerHTML = '<span>Downloading...</span>';
-                    ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('Plugins/WhisperSubs/Setup/DownloadBinary', { variant: variant }) })
-                        .then(function () { WhisperSubsConfig.startProgressPolling(); })
-                        .catch(function (err) {
-                            btn.disabled = false;
-                            btn.innerHTML = '<span>Download Binary</span>';
-                            if (WhisperSubsConfig._quickSetupPhase) {
-                                WhisperSubsConfig._quickSetupPhase = null;
-                                WhisperSubsConfig.resetDownloadButtons();
+                activateModel: function (filename) {
+                    ApiClient.ajax({
+                        type: 'POST',
+                        url: ApiClient.getUrl('Plugins/WhisperSubs/Setup/Models/' + encodeURIComponent(filename) + '/Activate')
+                    }).then(function () {
+                        Dashboard.alert('Model activated.');
+                        WhisperSubsConfig.renderDownloadedModels();
+                        ApiClient.getPluginConfiguration(WhisperSubsConfig.pluginId).then(function (config) {
+                            if (config) {
+                                document.querySelector('#txtWhisperModelPath').value = config.WhisperModelPath || '';
                             }
+                        });
+                    }).catch(function (err) {
+                        Dashboard.alert('Failed to activate model: ' + (err.message || err));
+                    });
+                },
+
+                deleteModel: function (filename, displayName) {
+                    if (!confirm('Delete model "' + (displayName || filename) + '"?\n\nThis cannot be undone.')) return;
+                    ApiClient.ajax({
+                        type: 'DELETE',
+                        url: ApiClient.getUrl('Plugins/WhisperSubs/Setup/Models/' + encodeURIComponent(filename))
+                    }).then(function () {
+                        Dashboard.alert('Model deleted.');
+                        WhisperSubsConfig.renderDownloadedModels();
+                    }).catch(function (err) {
+                        Dashboard.alert('Failed to delete model: ' + (err.message || err));
+                    });
+                },
+
+                startEngineDownload: function (type) {
+                    var binBtn = document.querySelector('#btnEngineDownloadBinary');
+                    var modBtn = document.querySelector('#btnEngineDownloadModel');
+                    binBtn.disabled = true;
+                    modBtn.disabled = true;
+
+                    if (type === 'binary') {
+                        var variant = document.querySelector('#engineBinaryVariant').value || 'cpu';
+                        binBtn.innerHTML = '<span>Downloading\u2026</span>';
+                        ApiClient.ajax({
+                            type: 'POST',
+                            url: ApiClient.getUrl('Plugins/WhisperSubs/Setup/DownloadBinary', { variant: variant })
+                        }).then(function () {
+                            WhisperSubsConfig.startEngineProgressPolling();
+                        }).catch(function (err) {
+                            WhisperSubsConfig.resetEngineButtons();
                             Dashboard.alert('Download failed: ' + (err.message || err));
                         });
-                },
-
-                startModelDownload: function () {
-                    var modelName = document.querySelector('#selectDownloadModel').value;
-                    if (!modelName) { Dashboard.alert('Select a model first.'); return; }
-                    var btn = document.querySelector('#btnDownloadModel');
-                    btn.disabled = true;
-                    btn.innerHTML = '<span>Downloading...</span>';
-                    ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('Plugins/WhisperSubs/Setup/DownloadModel', { name: modelName }) })
-                        .then(function () { WhisperSubsConfig.startProgressPolling(); })
-                        .catch(function (err) {
-                            btn.disabled = false;
-                            btn.innerHTML = '<span>Download Model</span>';
-                            if (WhisperSubsConfig._quickSetupPhase) {
-                                WhisperSubsConfig._quickSetupPhase = null;
-                                WhisperSubsConfig.resetDownloadButtons();
-                            }
+                    } else {
+                        var modelName = document.querySelector('#engineModelSelect').value;
+                        if (!modelName) {
+                            WhisperSubsConfig.resetEngineButtons();
+                            Dashboard.alert('Select a model first.');
+                            return;
+                        }
+                        modBtn.innerHTML = '<span>Downloading\u2026</span>';
+                        ApiClient.ajax({
+                            type: 'POST',
+                            url: ApiClient.getUrl('Plugins/WhisperSubs/Setup/DownloadModel', { name: modelName })
+                        }).then(function () {
+                            WhisperSubsConfig.startEngineProgressPolling();
+                        }).catch(function (err) {
+                            WhisperSubsConfig.resetEngineButtons();
                             Dashboard.alert('Download failed: ' + (err.message || err));
                         });
+                    }
                 },
 
-                quickSetup: function () {
-                    var btn = document.querySelector('#btnQuickSetup');
-                    btn.disabled = true;
-                    btn.innerHTML = '<span>Setting up...</span>';
-                    WhisperSubsConfig.ajaxGet(ApiClient.getUrl('Plugins/WhisperSubs/Setup/Status'))
-                        .then(function (s) {
-                            if (!s.BinaryFound) {
-                                WhisperSubsConfig._quickSetupPhase = s.ModelFound ? 'binary-only' : 'binary-then-model';
-                                WhisperSubsConfig.startBinaryDownload();
-                            } else if (!s.ModelFound) {
-                                WhisperSubsConfig._quickSetupPhase = 'model-only';
-                                WhisperSubsConfig.startModelDownload();
-                            }
-                        })
-                        .catch(function (err) {
-                            btn.disabled = false;
-                            btn.innerHTML = '<span>Quick Setup (Download Both)</span>';
-                            Dashboard.alert('Setup failed: ' + (err.message || err));
-                        });
-                },
-
-                startProgressPolling: function () {
-                    var bar = document.querySelector('#setupProgressBar');
-                    var text = document.querySelector('#setupProgressText');
-                    var container = document.querySelector('#setupProgressContainer');
+                startEngineProgressPolling: function () {
+                    var bar = document.querySelector('#engineProgressBar');
+                    var text = document.querySelector('#engineProgressText');
+                    var container = document.querySelector('#engineProgressContainer');
                     container.style.display = '';
 
                     if (WhisperSubsConfig._progressPollTimer) {
@@ -508,29 +593,17 @@
 
                                 if (p.Error) {
                                     text.style.color = '#CC7B19';
-                                    WhisperSubsConfig.stopProgressPolling();
-                                    WhisperSubsConfig._quickSetupPhase = null;
-                                    WhisperSubsConfig.resetDownloadButtons();
-                                    WhisperSubsConfig.checkSetupStatus();
+                                    WhisperSubsConfig.stopEngineProgressPolling();
+                                    WhisperSubsConfig.resetEngineButtons();
+                                    WhisperSubsConfig.loadEngine();
                                     return;
                                 }
 
                                 if (!p.IsRunning && p.Percent >= 100) {
-                                    WhisperSubsConfig.stopProgressPolling();
-                                    if (WhisperSubsConfig._quickSetupPhase === 'binary-then-model') {
-                                        WhisperSubsConfig._quickSetupPhase = 'model-only';
-                                        bar.style.width = '0%';
-                                        text.textContent = 'Binary done. Starting model download...';
-                                        setTimeout(function () {
-                                            WhisperSubsConfig.startModelDownload();
-                                        }, 500);
-                                        return;
-                                    }
-                                    WhisperSubsConfig._quickSetupPhase = null;
-                                    WhisperSubsConfig.resetDownloadButtons();
+                                    WhisperSubsConfig.stopEngineProgressPolling();
+                                    WhisperSubsConfig.resetEngineButtons();
                                     setTimeout(function () {
-                                        WhisperSubsConfig.checkSetupStatus();
-                                        WhisperSubsConfig.loadModels();
+                                        WhisperSubsConfig.loadEngine();
                                         ApiClient.getPluginConfiguration(WhisperSubsConfig.pluginId).then(function (config) {
                                             if (config) {
                                                 var page = document.querySelector('[data-role="page"]');
@@ -545,20 +618,19 @@
                     }, 1000);
                 },
 
-                stopProgressPolling: function () {
+                stopEngineProgressPolling: function () {
                     if (WhisperSubsConfig._progressPollTimer) {
                         clearInterval(WhisperSubsConfig._progressPollTimer);
                         WhisperSubsConfig._progressPollTimer = null;
                     }
                 },
 
-                resetDownloadButtons: function () {
-                    var binBtn = document.querySelector('#btnDownloadBinary');
-                    var modBtn = document.querySelector('#btnDownloadModel');
-                    var qsBtn = document.querySelector('#btnQuickSetup');
-                    if (binBtn) { binBtn.disabled = false; binBtn.innerHTML = '<span>Download Binary</span>'; }
-                    if (modBtn) { modBtn.disabled = false; modBtn.innerHTML = '<span>Download Model</span>'; }
-                    if (qsBtn) { qsBtn.disabled = false; qsBtn.innerHTML = '<span>Quick Setup (Download Both)</span>'; }
+                resetEngineButtons: function () {
+                    var binBtn = document.querySelector('#btnEngineDownloadBinary');
+                    var modBtn = document.querySelector('#btnEngineDownloadModel');
+                    if (binBtn) { binBtn.disabled = false; binBtn.innerHTML = '<span>Download</span>'; }
+                    if (modBtn) { modBtn.disabled = false; modBtn.innerHTML = '<span>Download</span>'; }
+                    WhisperSubsConfig.updateModelDownloadState();
                 },
 
                 // Full language list — matches DefaultLanguage selector exactly
@@ -660,8 +732,7 @@
                             page.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration || false;
                             page.querySelector('#chkEnableLyricsGeneration').checked = config.EnableLyricsGeneration || false;
                         }
-                        WhisperSubsConfig.loadModels();
-                        WhisperSubsConfig.loadLibraries();
+                            WhisperSubsConfig.loadLibraries();
                         WhisperSubsConfig.loadLibrarySelector(config ? config.EnabledLibraries || [] : []);
                     });
                 },
@@ -686,7 +757,7 @@
 
                         ApiClient.updatePluginConfiguration(WhisperSubsConfig.pluginId, config).then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);
-                            WhisperSubsConfig.loadModels();
+                            WhisperSubsConfig.renderDownloadedModels();
                             if (config.EnableAutoGeneration && !wasAutoGenEnabled) {
                                 ApiClient.ajax({
                                     type: 'POST',
@@ -696,45 +767,6 @@
                                 }).catch(function () {});
                             }
                         });
-                    });
-                },
-
-                loadModels: function () {
-                    WhisperSubsConfig.ajaxGet(
-                        ApiClient.getUrl('Plugins/WhisperSubs/Models')
-                    ).then(function (models) {
-                        var container = document.querySelector('#modelPickerContainer');
-                        var select = document.querySelector('#selectModel');
-                        var currentPath = document.querySelector('#txtWhisperModelPath').value;
-
-                        if (!models || !Array.isArray(models) || models.length === 0) {
-                            container.style.display = 'none';
-                            return;
-                        }
-
-                        container.style.display = '';
-                        select.innerHTML = '';
-
-                        models.forEach(function (model) {
-                            var opt = document.createElement('option');
-                            opt.value = model.Path;
-                            var sizeMB = Math.round(model.SizeMB);
-                            var sizeLabel = sizeMB >= 1024
-                                ? (sizeMB / 1024).toFixed(1) + ' GB'
-                                : sizeMB + ' MB';
-                            opt.textContent = model.Name + ' (' + sizeLabel + ')';
-                            if (model.IsActive) {
-                                opt.textContent += ' \u2713';
-                            }
-                            select.appendChild(opt);
-                        });
-
-                        if (currentPath) {
-                            select.value = currentPath;
-                        }
-                    }).catch(function (error) {
-                        console.error('WhisperSubs: error loading models', error);
-                        document.querySelector('#modelPickerContainer').style.display = 'none';
                     });
                 },
 
@@ -1051,7 +1083,7 @@
 
             document.querySelector('[data-role="page"]').addEventListener('pageshow', function () {
                 WhisperSubsConfig.loadConfiguration(this);
-                WhisperSubsConfig.checkSetupStatus();
+                WhisperSubsConfig.loadEngine();
                 // Check if transcription is already running and show banner
                 WhisperSubsConfig.pollQueueStatus();
                 WhisperSubsConfig.ajaxGet(ApiClient.getUrl('Plugins/WhisperSubs/Queue'))
@@ -1063,28 +1095,18 @@
                     .catch(function () {});
             });
 
-            document.querySelector('#btnDownloadBinary').addEventListener('click', function () {
-                WhisperSubsConfig.startBinaryDownload();
+            document.querySelector('#btnEngineDownloadBinary').addEventListener('click', function () {
+                WhisperSubsConfig.startEngineDownload('binary');
             });
 
-            document.querySelector('#btnDownloadModel').addEventListener('click', function () {
-                WhisperSubsConfig.startModelDownload();
-            });
-
-            document.querySelector('#btnQuickSetup').addEventListener('click', function () {
-                WhisperSubsConfig.quickSetup();
+            document.querySelector('#btnEngineDownloadModel').addEventListener('click', function () {
+                WhisperSubsConfig.startEngineDownload('model');
             });
 
             document.querySelector('.whisperSubsConfigurationForm').addEventListener('submit', function (e) {
                 e.preventDefault();
                 WhisperSubsConfig.saveConfiguration(this.closest('[data-role="page"]'));
                 return false;
-            });
-
-            document.querySelector('#selectModel').addEventListener('change', function (e) {
-                if (e.target.value) {
-                    document.querySelector('#txtWhisperModelPath').value = e.target.value;
-                }
             });
 
             document.querySelector('#selectLibrary').addEventListener('change', function (e) {
