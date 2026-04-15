@@ -336,6 +336,18 @@ namespace WhisperSubs.Setup
             };
             info.HasVulkanLibrary = Array.Exists(vulkanPaths, File.Exists);
 
+            // OpenMP runtime — required by ALL whisper.cpp variants (CPU, Vulkan, CUDA, ROCm)
+            var openmpPaths = new[]
+            {
+                "/lib/x86_64-linux-gnu/libgomp.so.1",
+                "/usr/lib/x86_64-linux-gnu/libgomp.so.1",
+                "/usr/lib/libgomp.so.1",
+                "/lib64/libgomp.so.1",
+                "/usr/lib64/libgomp.so.1",
+                "/lib/aarch64-linux-gnu/libgomp.so.1"
+            };
+            info.HasOpenMP = Array.Exists(openmpPaths, File.Exists);
+
             // Recommend variant based on detection — require both device AND userspace library
             if (info.HasNvidia && info.HasCudaLibrary) info.RecommendedVariant = "cuda12";
             else if (info.HasAmdGpu && info.HasRocmLibrary) info.RecommendedVariant = "rocm";
@@ -511,7 +523,7 @@ namespace WhisperSubs.Setup
                 {
                     // Extract the missing library name from stderr
                     var match = System.Text.RegularExpressions.Regex.Match(
-                        stderr, @"error while loading shared libraries:\s*(\S+)");
+                        stderr, @"error while loading shared libraries:\s*(\S+?):");
                     var lib = match.Success ? match.Groups[1].Value : "a shared library";
                     var installHint = GetInstallHint(lib);
                     var isCpu = string.Equals(variant, "cpu", StringComparison.OrdinalIgnoreCase);
@@ -606,6 +618,7 @@ namespace WhisperSubs.Setup
         public bool HasRocmLibrary { get; set; }
         public bool HasRenderDevice { get; set; }
         public bool HasVulkanLibrary { get; set; }
+        public bool HasOpenMP { get; set; }
         public string RecommendedVariant { get; set; } = "cpu";
     }
 

@@ -115,6 +115,27 @@ Then configure the plugin with:
 
 > **Note:** The binary must be compiled for the same architecture as the container (typically x86_64 Linux). Download the `linux-x64` release asset or build inside a matching environment.
 
+#### Container Library Requirements {#container-setup}
+
+The plugin's built-in binary downloader fetches pre-built whisper-cli binaries. These require runtime libraries that are **not included** in the default Jellyfin Docker image:
+
+| Variant | Required packages | Install command |
+|---------|-------------------|-----------------|
+| **CPU** | `libgomp1` | `apt install libgomp1` |
+| **Vulkan** | `libgomp1`, `libvulkan1`, `mesa-vulkan-drivers` | `apt install libgomp1 libvulkan1 mesa-vulkan-drivers` |
+| **CUDA 12** | `libgomp1` + NVIDIA Container Toolkit on host | See [CUDA section](#cuda-nvidia) |
+| **ROCm** | `libgomp1` + ROCm runtime | See [ROCm docs](https://rocm.docs.amd.com/) |
+
+> `libgomp1` (OpenMP threading) is required by **all** variants, including CPU.
+
+To install persistently, add to your container's entrypoint or Dockerfile:
+
+```bash
+apt-get update -qq && apt-get install -y -qq --no-install-recommends libgomp1 && rm -rf /var/lib/apt/lists/*
+```
+
+The plugin's setup page will detect missing libraries and warn you before downloading.
+
 ### Verifying the Installation
 
 ```bash
