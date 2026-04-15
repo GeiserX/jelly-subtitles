@@ -318,6 +318,18 @@ namespace WhisperSubs.Api
                     ? System.IO.Path.GetDirectoryName(config.WhisperModelPath)
                     : null;
 
+                // Fallback to default models directory
+                if (string.IsNullOrEmpty(modelsDir) || !System.IO.Directory.Exists(modelsDir))
+                {
+                    var dataDir = Plugin.Instance?.DataFolderPath;
+                    if (!string.IsNullOrEmpty(dataDir))
+                    {
+                        var defaultDir = System.IO.Path.Combine(dataDir, "whisper", "models");
+                        if (System.IO.Directory.Exists(defaultDir))
+                            modelsDir = defaultDir;
+                    }
+                }
+
                 if (string.IsNullOrEmpty(modelsDir) || !System.IO.Directory.Exists(modelsDir))
                 {
                     return Ok(Array.Empty<ModelInfo>());
@@ -328,6 +340,7 @@ namespace WhisperSubs.Api
                     {
                         Path = path,
                         Name = System.IO.Path.GetFileNameWithoutExtension(path),
+                        FileName = System.IO.Path.GetFileName(path),
                         SizeMB = new System.IO.FileInfo(path).Length / (1024.0 * 1024.0),
                         IsActive = string.Equals(path, config.WhisperModelPath, StringComparison.OrdinalIgnoreCase)
                     })
@@ -499,6 +512,83 @@ namespace WhisperSubs.Api
             return Ok(p);
         }
 
+        /// <summary>
+        /// Activates a downloaded model by setting it as the configured model path.
+        /// </summary>
+        [HttpPost("Setup/Models/{filename}/Activate")]
+        [Authorize(Policy = "RequiresElevation")]
+        public ActionResult ActivateModel([FromRoute] string filename)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(filename) || filename.Contains("..") || filename.Contains('/') || filename.Contains('\\'))
+                    return BadRequest(new { error = "Invalid filename" });
+
+                var dataDir = Plugin.Instance?.DataFolderPath;
+                if (string.IsNullOrEmpty(dataDir))
+                    return StatusCode(500, new { error = "Plugin data directory not available" });
+
+                var modelsDir = System.IO.Path.Combine(dataDir, "whisper", "models");
+                var modelPath = System.IO.Path.Combine(modelsDir, filename);
+
+                if (!System.IO.File.Exists(modelPath))
+                    return NotFound(new { error = "Model file not found" });
+
+                var config = Plugin.Instance!.Configuration;
+                config.WhisperModelPath = modelPath;
+                Plugin.Instance.SaveConfiguration();
+
+                _logger.LogInformation("Activated model: {Path}", modelPath);
+                return Ok(new { message = "Model activated", path = modelPath });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error activating model {Filename}", filename);
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Deletes a downloaded model. Cannot delete the active model or the last remaining model.
+        /// </summary>
+        [HttpDelete("Setup/Models/{filename}")]
+        [Authorize(Policy = "RequiresElevation")]
+        public ActionResult DeleteModel([FromRoute] string filename)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(filename) || filename.Contains("..") || filename.Contains('/') || filename.Contains('\\'))
+                    return BadRequest(new { error = "Invalid filename" });
+
+                var dataDir = Plugin.Instance?.DataFolderPath;
+                if (string.IsNullOrEmpty(dataDir))
+                    return StatusCode(500, new { error = "Plugin data directory not available" });
+
+                var modelsDir = System.IO.Path.Combine(dataDir, "whisper", "models");
+                var modelPath = System.IO.Path.Combine(modelsDir, filename);
+
+                if (!System.IO.File.Exists(modelPath))
+                    return NotFound(new { error = "Model file not found" });
+
+                var config = Plugin.Instance!.Configuration;
+                if (string.Equals(config.WhisperModelPath, modelPath, StringComparison.OrdinalIgnoreCase))
+                    return BadRequest(new { error = "Cannot delete the active model. Activate a different model first." });
+
+                var allModels = System.IO.Directory.GetFiles(modelsDir, "*.bin");
+                if (allModels.Length <= 1)
+                    return BadRequest(new { error = "Cannot delete the last remaining model." });
+
+                System.IO.File.Delete(modelPath);
+                _logger.LogInformation("Deleted model: {Path}", modelPath);
+                return Ok(new { message = "Model deleted" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting model {Filename}", filename);
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
         private BaseItemKind[] GetBaseItemKinds(string input)
         {
             if (string.IsNullOrWhiteSpace(input))
@@ -565,6 +655,7 @@ namespace WhisperSubs.Api
     {
         public string Path { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
+        public string FileName { get; set; } = string.Empty;
         public double SizeMB { get; set; }
         public bool IsActive { get; set; }
     }
