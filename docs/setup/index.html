@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhisperSubs - Container Setup Guide</title>
+    <style>
+        :root { --bg: #101014; --card: #1a1a22; --border: #2a2a35; --text: #e0e0e8; --muted: #8888a0; --green: #52B54B; --orange: #CC7B19; --purple: #6B4C9A; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+        .container { max-width: 820px; margin: 0 auto; padding: 2em 1.5em 4em; }
+        a { color: var(--green); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        h1 { font-size: 2em; margin-bottom: 0.2em; }
+        h1 span { color: var(--purple); }
+        .subtitle { color: var(--muted); font-size: 1.05em; margin-bottom: 2em; }
+        h2 { font-size: 1.3em; margin: 2em 0 0.8em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border); }
+        h3 { font-size: 1.1em; margin: 1.5em 0 0.5em; }
+        p, li { color: var(--text); margin-bottom: 0.6em; }
+        ul { padding-left: 1.5em; }
+        table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+        th, td { padding: 0.6em 0.8em; text-align: left; border-bottom: 1px solid var(--border); }
+        th { color: var(--muted); font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.05em; }
+        code { background: rgba(255,255,255,0.06); padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; font-family: 'SF Mono', Monaco, Consolas, monospace; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1em 1.2em; overflow-x: auto; margin: 1em 0; }
+        pre code { background: none; padding: 0; font-size: 0.88em; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.2em; margin: 1em 0; }
+        .card-green { border-left: 3px solid var(--green); }
+        .card-orange { border-left: 3px solid var(--orange); }
+        .badge { display: inline-block; padding: 0.15em 0.5em; border-radius: 4px; font-size: 0.8em; font-weight: 600; }
+        .badge-green { background: rgba(82,181,75,0.15); color: var(--green); }
+        .badge-orange { background: rgba(204,123,25,0.15); color: var(--orange); }
+        .badge-purple { background: rgba(107,76,154,0.15); color: #a88bcc; }
+        .nav { display: flex; gap: 1em; margin-bottom: 2em; flex-wrap: wrap; }
+        .nav a { color: var(--muted); font-size: 0.9em; padding: 0.3em 0.7em; border: 1px solid var(--border); border-radius: 6px; transition: all 0.2s; }
+        .nav a:hover { color: var(--green); border-color: var(--green); text-decoration: none; }
+        .back { color: var(--muted); font-size: 0.9em; margin-bottom: 1.5em; display: inline-block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="https://github.com/GeiserX/whisper-subs" class="back">&larr; Back to repository</a>
+
+        <h1><span>WhisperSubs</span> Setup Guide</h1>
+        <p class="subtitle">Container library requirements for the built-in binary downloader</p>
+
+        <div class="nav">
+            <a href="#quick-start">Quick Start</a>
+            <a href="#variants">Variant Requirements</a>
+            <a href="#docker-setup">Docker Setup</a>
+            <a href="#troubleshooting">Troubleshooting</a>
+        </div>
+
+        <h2 id="quick-start">Quick Start</h2>
+        <p>WhisperSubs can download whisper-cli binaries directly from the plugin settings page. These pre-built binaries require runtime libraries that may not be included in your Jellyfin container.</p>
+
+        <div class="card card-green">
+            <strong>Running on bare metal?</strong> If Jellyfin runs directly on your system (not in Docker), the required libraries are usually already present. Just select your variant and download &mdash; the plugin will tell you if anything is missing.
+        </div>
+
+        <h2 id="variants">Variant Requirements</h2>
+        <p>Every variant requires <code>libgomp1</code> (the OpenMP threading library). GPU variants need additional libraries.</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Variant</th>
+                    <th>Required Packages</th>
+                    <th>Install Command</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="badge badge-green">CPU</span></td>
+                    <td><code>libgomp1</code></td>
+                    <td><code>apt install libgomp1</code></td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-purple">Vulkan</span></td>
+                    <td><code>libgomp1</code> <code>libvulkan1</code> <code>mesa-vulkan-drivers</code></td>
+                    <td><code>apt install libgomp1 libvulkan1 mesa-vulkan-drivers</code></td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-purple">CUDA 12</span></td>
+                    <td><code>libgomp1</code> + NVIDIA Container Toolkit on host</td>
+                    <td><a href="https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html">NVIDIA docs</a></td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-purple">ROCm</span></td>
+                    <td><code>libgomp1</code> + ROCm runtime</td>
+                    <td><a href="https://rocm.docs.amd.com/">ROCm docs</a></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2 id="docker-setup">Docker Setup</h2>
+
+        <h3>CPU Variant (simplest)</h3>
+        <p>Add to your container entrypoint or run once inside the container:</p>
+        <pre><code>apt-get update -qq && apt-get install -y -qq --no-install-recommends libgomp1 && rm -rf /var/lib/apt/lists/*</code></pre>
+
+        <h3>Vulkan Variant (Intel / AMD GPU)</h3>
+        <p>Pass the GPU device and install Vulkan libraries:</p>
+        <pre><code># docker-compose.yml
+services:
+  jellyfin:
+    image: jellyfin/jellyfin
+    devices:
+      - /dev/dri:/dev/dri</code></pre>
+        <p>Then inside the container:</p>
+        <pre><code>apt-get update -qq && \
+apt-get install -y -qq --no-install-recommends \
+  libgomp1 libvulkan1 mesa-vulkan-drivers && \
+rm -rf /var/lib/apt/lists/*</code></pre>
+
+        <h3>Persistent Install via Entrypoint</h3>
+        <p>Libraries installed with <code>apt</code> inside a running container are lost on restart. To make them persistent, override the entrypoint:</p>
+        <pre><code># docker-compose.yml
+services:
+  jellyfin:
+    image: jellyfin/jellyfin
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        dpkg -s libgomp1 > /dev/null 2>&1 || \
+          (apt-get update -qq && \
+           apt-get install -y -qq --no-install-recommends \
+             libgomp1 > /dev/null 2>&1 && \
+           rm -rf /var/lib/apt/lists/*)
+        exec /jellyfin/jellyfin
+    devices:
+      - /dev/dri:/dev/dri   # only if using GPU variants</code></pre>
+
+        <div class="card card-orange">
+            <strong>Unraid users:</strong> You can add the <code>apt install</code> command to the container's <strong>Post Arguments</strong> or use the <strong>User Scripts</strong> plugin to run it on container start.
+        </div>
+
+        <h2 id="troubleshooting">Troubleshooting</h2>
+
+        <h3>"Missing libgomp.so.1"</h3>
+        <p>All whisper-cli variants use OpenMP for threading. Install it with:</p>
+        <pre><code>apt install libgomp1</code></pre>
+
+        <h3>"Missing libvulkan.so.1"</h3>
+        <p>The Vulkan variant needs the Vulkan loader. Jellyfin's bundled FFmpeg includes its own copy, but whisper-cli needs the system one:</p>
+        <pre><code>apt install libvulkan1 mesa-vulkan-drivers</code></pre>
+
+        <h3>Binary downloads return 404</h3>
+        <p>The download URL uses the plugin version to find the matching GitHub release. Make sure the plugin version matches an existing <a href="https://github.com/GeiserX/whisper-subs/releases">release</a>.</p>
+
+        <h3>Verify GPU inside Docker</h3>
+        <pre><code># Check Vulkan
+docker exec jellyfin apt-get update -qq && \
+  docker exec jellyfin apt-get install -y -qq vulkan-tools && \
+  docker exec jellyfin vulkaninfo --summary
+
+# Check NVIDIA
+docker exec jellyfin nvidia-smi</code></pre>
+
+        <hr style="border:none; border-top:1px solid var(--border); margin:3em 0 1.5em;">
+        <p style="color:var(--muted); font-size:0.85em;">
+            <a href="https://github.com/GeiserX/whisper-subs">WhisperSubs</a> &mdash;
+            Automated subtitle generation for Jellyfin using local AI models.
+        </p>
+    </div>
+</body>
+</html>
