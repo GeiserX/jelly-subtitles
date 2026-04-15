@@ -322,6 +322,19 @@ After installation, navigate to **Dashboard** > **Plugins** > **WhisperSubs** to
 | **Enable Auto-Generation** | When enabled, the scheduled task will scan selected libraries and generate subtitles for items that lack them. |
 | **Enabled Libraries** | Select which libraries should be monitored for automatic subtitle generation. |
 
+### Subtitle Modes
+
+| Mode | What it generates | Performance |
+|---|---|---|
+| **Full** (default) | Complete transcription of all speech | Fast -- single whisper run per audio track |
+| **Forced Only** | Only foreign-language dialogue (e.g., French lines in an English movie) | Slow -- see below |
+| **Full + Forced** | Both files per track | Slowest -- runs both pipelines |
+
+> **Performance warning for Forced / Full + Forced modes:**
+> Forced subtitle generation uses a multi-step pipeline: audio extraction, VAD-based speech segmentation, then **per-chunk language detection** on every ~30-second segment of the movie. For a 2-hour film this means ~240 individual whisper calls just for detection, before any transcription begins. On CPU, this phase alone can take **10--20+ minutes per movie**. GPU acceleration helps significantly.
+>
+> If you don't need forced subtitles (most users don't), use **Full** mode for much faster processing.
+
 ### Language Handling
 
 The plugin supports three language modes:
