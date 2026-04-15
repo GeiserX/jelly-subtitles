@@ -422,7 +422,7 @@ namespace WhisperSubs.Setup
                 _logger.LogInformation("Binary {Variant} SHA256: {Hash}", variant, sha256);
 
                 // Validate the binary can actually run (catches missing shared libraries)
-                var validationError = ValidateBinary(BinaryPath);
+                var validationError = ValidateBinary(BinaryPath, variant);
                 if (validationError != null)
                 {
                     _logger.LogWarning("Binary validation warning: {Error}", validationError);
@@ -476,7 +476,7 @@ namespace WhisperSubs.Setup
         /// Returns null on success, or a user-friendly error message on failure
         /// (e.g. missing shared libraries like libvulkan.so.1).
         /// </summary>
-        private string? ValidateBinary(string binaryPath)
+        private string? ValidateBinary(string binaryPath, string variant)
         {
             try
             {
@@ -513,7 +513,12 @@ namespace WhisperSubs.Setup
                     var match = System.Text.RegularExpressions.Regex.Match(
                         stderr, @"error while loading shared libraries:\s*(\S+)");
                     var lib = match.Success ? match.Groups[1].Value : "a shared library";
-                    return $"Missing {lib}. Try the CPU variant, or install the library in your container (e.g. 'apt install libvulkan1' for Vulkan).";
+                    var installHint = GetInstallHint(lib);
+                    var isCpu = string.Equals(variant, "cpu", StringComparison.OrdinalIgnoreCase);
+                    var suggestion = isCpu
+                        ? $"Install it in your container ({installHint})."
+                        : $"Try the CPU variant, or install the library in your container ({installHint}).";
+                    return $"Missing {lib}. {suggestion}";
                 }
 
                 return null; // Any other exit code is fine (--help may return non-zero on some builds)
@@ -524,6 +529,18 @@ namespace WhisperSubs.Setup
                 return null; // Can't probe — don't block the download
             }
         }
+
+        /// <summary>
+        /// Returns an apt-install hint for a missing shared library.
+        /// </summary>
+        private static string GetInstallHint(string libraryName) => libraryName switch
+        {
+            "libgomp.so.1" => "e.g. 'apt install libgomp1'",
+            "libvulkan.so.1" => "e.g. 'apt install libvulkan1'",
+            "libcuda.so.1" or "libcudart.so.12" => "e.g. install the NVIDIA CUDA toolkit",
+            "libamdhip64.so" => "e.g. install the AMD ROCm runtime",
+            _ => $"e.g. 'apt install' the package providing {libraryName}"
+        };
 
         private static string ComputeSha256(string filePath)
         {
