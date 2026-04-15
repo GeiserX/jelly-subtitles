@@ -115,7 +115,7 @@ Then configure the plugin with:
 
 > **Note:** The binary must be compiled for the same architecture as the container (typically x86_64 Linux). Download the `linux-x64` release asset or build inside a matching environment.
 
-#### Container Library Requirements {#container-setup}
+#### <a id="container-setup"></a>Container Library Requirements
 
 The plugin's built-in binary downloader fetches pre-built whisper-cli binaries. These require runtime libraries that are **not included** in the default Jellyfin Docker image:
 

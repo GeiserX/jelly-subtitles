@@ -12,7 +12,7 @@
                 <!-- Whisper Engine Management -->
                 <div style="display:flex; align-items:baseline; gap:0.8em;">
                     <h2 style="margin:0;">Whisper Engine</h2>
-                    <a href="https://geiserx.github.io/whisper-subs/docs/setup/" target="_blank"
+                    <a href="https://geiserx.github.io/whisper-subs/docs/setup/" target="_blank" rel="noopener noreferrer"
                        style="font-size:0.85em; color:#52B54B; text-decoration:none;">Setup guide &rarr;</a>
                 </div>
 
@@ -625,7 +625,7 @@
                     var gpuInfo = WhisperSubsConfig._gpuInfo;
                     var hint = document.querySelector('#engineGpuHint');
                     var variant = document.querySelector('#engineBinaryVariant').value || 'cpu';
-                    if (!gpuInfo) { hint.textContent = ''; return; }
+                    if (!gpuInfo) { hint.textContent = ''; hint.style.color = ''; return; }
 
                     if (variant === 'cuda12') {
                         if (gpuInfo.HasNvidia && gpuInfo.HasCudaLibrary) {
