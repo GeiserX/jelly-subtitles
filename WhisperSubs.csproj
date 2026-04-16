@@ -4,7 +4,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>3.9.1.0</Version>
+    <Version>3.10.0.0</Version>
     <Authors>Sergio</Authors>
     <Company>Sergio</Company>
     <Product>WhisperSubs</Product>
@@ -20,7 +20,9 @@
 
   <ItemGroup>
     <None Remove="Web\configPage.html" />
+    <None Remove="Web\whisperSubs.js" />
     <EmbeddedResource Include="Web\configPage.html" />
+    <EmbeddedResource Include="Web\whisperSubs.js" />
   </ItemGroup>
 
   <ItemGroup>

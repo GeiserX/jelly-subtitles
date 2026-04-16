@@ -487,7 +487,20 @@ namespace WhisperSubs.Providers
                 return null;
             }
 
-            // No configured path — discover from PATH via probing.
+            // No configured path — check the default auto-download location first.
+            var dataDir = Plugin.Instance?.DataFolderPath;
+            if (!string.IsNullOrEmpty(dataDir))
+            {
+                var autoDownloaded = Path.Combine(dataDir, "whisper", "whisper-cli");
+                if (File.Exists(autoDownloaded))
+                {
+                    _logger.LogInformation("Found auto-downloaded Whisper executable: {Executable}", autoDownloaded);
+                    _resolvedExecutable = autoDownloaded;
+                    return _resolvedExecutable;
+                }
+            }
+
+            // Fallback: discover from PATH via probing.
             // "main" is intentionally excluded: it is a common binary name on Windows
             // (VS build tools, Git, etc.) and could resolve to the wrong executable.
             var candidates = new[] { "whisper-cli", "whisper" };
