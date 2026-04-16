@@ -103,8 +103,11 @@ namespace WhisperSubs.ScheduledTasks
             // subtitles must still be considered. Only filter by HasSubtitles in Full mode.
             var needsForced = config.SubtitleMode == Configuration.SubtitleMode.ForcedOnly
                 || config.SubtitleMode == Configuration.SubtitleMode.FullAndForced;
+            var needsTranslation = config.EnableTranslation
+                && (config.SubtitleMode == Configuration.SubtitleMode.Full
+                    || config.SubtitleMode == Configuration.SubtitleMode.FullAndForced);
 
-            var includeKinds = new List<BaseItemKind> { BaseItemKind.Movie, BaseItemKind.Episode };
+            var includeKinds = new List<BaseItemKind> { BaseItemKind.Movie, BaseItemKind.Episode, BaseItemKind.Video };
             if (config.EnableLyricsGeneration)
             {
                 includeKinds.Add(BaseItemKind.Audio);
@@ -127,7 +130,7 @@ namespace WhisperSubs.ScheduledTasks
                 {
                     if (queryItem is Video video)
                     {
-                        if (!needsForced && video.HasSubtitles) continue;
+                        if (!needsForced && !needsTranslation && video.HasSubtitles) continue;
                         allItems.Add((video, libraryName));
                     }
                     else if (queryItem is MediaBrowser.Controller.Entities.Audio.Audio)
@@ -222,11 +225,18 @@ namespace WhisperSubs.ScheduledTasks
                         }
                         var hasForcedSrt = existingFiles.Any(f => System.IO.Path.GetFileName(f).Contains(".forced.")) || noForeignMarkers.Length > 0;
 
+                        var hasTranslatedSrt = false;
+                        if (needsTranslation && dir != null)
+                        {
+                            hasTranslatedSrt = System.IO.File.Exists(
+                                System.IO.Path.Combine(dir, baseName + ".en.translated.srt"));
+                        }
+
                         bool alreadyComplete = config.SubtitleMode switch
                         {
-                            Configuration.SubtitleMode.Full => hasFullSrt,
+                            Configuration.SubtitleMode.Full => hasFullSrt && (!needsTranslation || hasTranslatedSrt),
                             Configuration.SubtitleMode.ForcedOnly => hasForcedSrt,
-                            Configuration.SubtitleMode.FullAndForced => hasFullSrt && hasForcedSrt,
+                            Configuration.SubtitleMode.FullAndForced => hasFullSrt && hasForcedSrt && (!needsTranslation || hasTranslatedSrt),
                             _ => hasFullSrt
                         };
 

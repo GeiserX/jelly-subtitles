@@ -6,7 +6,7 @@ namespace WhisperSubs.Providers
     public interface ISubtitleProvider
     {
         string Name { get; }
-        Task<string> TranscribeAsync(string audioPath, string language, CancellationToken cancellationToken);
+        Task<string> TranscribeAsync(string audioPath, string language, CancellationToken cancellationToken, bool translate = false);
 
         /// <summary>
         /// Detects the language spoken in an audio file.

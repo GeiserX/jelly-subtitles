@@ -167,6 +167,20 @@
                         </div>
                     </div>
 
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="chkEnableTranslation" name="EnableTranslation" />
+                            <span>Enable Translation (English)</span>
+                        </label>
+                        <div class="fieldDescription">
+                            When enabled, generates English subtitles via translation for media without an English audio track.
+                            Uses whisper's built-in <code>--translate</code> capability &mdash; no external services required.
+                            <br />
+                            <strong>Note:</strong> Only applies when Subtitle Mode includes Full subtitles (not Forced Only).
+                            Skipped automatically when English audio or English subtitles are already present.
+                        </div>
+                    </div>
+
                     <!-- ── Advanced / Manual Install ──────────────────── -->
                     <details style="margin-top:1.5em;">
                         <summary style="cursor:pointer; font-size:1.2em; font-weight:bold; padding:0.5em 0;">Advanced / Manual Install</summary>
@@ -770,6 +784,7 @@
                             page.querySelector('#selectSubtitleMode').value = (config.SubtitleMode != null ? config.SubtitleMode : 0).toString();
                             page.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration || false;
                             page.querySelector('#chkEnableLyricsGeneration').checked = config.EnableLyricsGeneration || false;
+                            page.querySelector('#chkEnableTranslation').checked = config.EnableTranslation || false;
                         }
                             WhisperSubsConfig.loadLibraries();
                         WhisperSubsConfig.loadLibrarySelector(config ? config.EnabledLibraries || [] : []);
@@ -786,6 +801,7 @@
                         config.SubtitleMode = parseInt(page.querySelector('#selectSubtitleMode').value, 10) || 0;
                         config.EnableAutoGeneration = page.querySelector('#chkEnableAutoGeneration').checked;
                         config.EnableLyricsGeneration = page.querySelector('#chkEnableLyricsGeneration').checked;
+                        config.EnableTranslation = page.querySelector('#chkEnableTranslation').checked;
 
                         // Collect enabled libraries from checkboxes
                         var libraryCheckboxes = page.querySelectorAll('.chkLibrary');
