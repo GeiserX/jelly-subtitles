@@ -29,7 +29,7 @@ namespace WhisperSubs.Providers
             _threadCount = threadCount;
         }
 
-        public async Task<string> TranscribeAsync(string audioPath, string language, CancellationToken cancellationToken)
+        public async Task<string> TranscribeAsync(string audioPath, string language, CancellationToken cancellationToken, bool translate = false)
         {
             _logger.LogInformation("Starting Whisper transcription for {AudioPath} with model {ModelPath}", audioPath, _modelPath);
 
@@ -81,6 +81,10 @@ namespace WhisperSubs.Providers
                 startInfo.ArgumentList.Add("-mc");
                 startInfo.ArgumentList.Add("0");
                 startInfo.ArgumentList.Add("-sns");
+                if (translate)
+                {
+                    startInfo.ArgumentList.Add("--translate");
+                }
                 startInfo.ArgumentList.Add("-osrt");
                 startInfo.ArgumentList.Add("-of");
                 startInfo.ArgumentList.Add(tempOutputPrefix);

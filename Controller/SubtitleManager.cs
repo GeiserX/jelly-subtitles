@@ -61,6 +61,14 @@ namespace WhisperSubs.Controller
                 }
             }
 
+            // Translation: generate English subs if enabled and no English audio present
+            var config = Plugin.Instance?.Configuration;
+            if (config?.EnableTranslation == true
+                && (subtitleMode == SubtitleMode.Full || subtitleMode == SubtitleMode.FullAndForced))
+            {
+                await GenerateTranslatedSubtitleAsync(item, provider, mediaPath, languages, cancellationToken);
+            }
+
             await item.RefreshMetadata(cancellationToken);
         }
 
@@ -130,6 +138,98 @@ namespace WhisperSubs.Controller
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error generating full subtitle for {ItemName} [{Language}], continuing with next language", item.Name, lang);
+            }
+            finally
+            {
+                if (File.Exists(tempAudioPath))
+                {
+                    try { File.Delete(tempAudioPath); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete temp audio: {Path}", tempAudioPath); }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Generates English translated subtitles using whisper's --translate flag.
+        /// Only runs when: no English audio stream detected, no existing .en.translated.srt,
+        /// and (as fallback) no existing English subtitle files when FFprobe couldn't detect languages.
+        /// </summary>
+        private async Task GenerateTranslatedSubtitleAsync(
+            BaseItem item, ISubtitleProvider provider, string mediaPath,
+            List<string> resolvedLanguages, CancellationToken cancellationToken)
+        {
+            // Skip if English audio is present
+            if (resolvedLanguages.Any(l => string.Equals(l, "en", StringComparison.OrdinalIgnoreCase)))
+            {
+                _logger.LogInformation("Skipping translation for {ItemName}: English audio stream present", item.Name);
+                return;
+            }
+
+            var translatedSrtPath = Path.ChangeExtension(mediaPath, ".en.translated.srt");
+
+            // Skip if translated subs already exist
+            if (File.Exists(translatedSrtPath))
+            {
+                _logger.LogInformation("Translated subtitle already exists for {ItemName}, skipping", item.Name);
+                return;
+            }
+
+            // Fallback: if FFprobe couldn't detect languages (resolved to "auto"),
+            // check if English subtitles already exist — skip if they do
+            if (resolvedLanguages.Count == 1
+                && string.Equals(resolvedLanguages[0], "auto", StringComparison.OrdinalIgnoreCase))
+            {
+                var dir = Path.GetDirectoryName(mediaPath);
+                var baseName = Path.GetFileNameWithoutExtension(mediaPath);
+                if (dir != null)
+                {
+                    var subtitleExts = new[] { ".srt", ".ass", ".ssa", ".sub", ".vtt" };
+                    var hasEnglishSubs = Directory.GetFiles(dir, baseName + ".*")
+                        .Any(f =>
+                        {
+                            var name = Path.GetFileName(f).ToLowerInvariant();
+                            return subtitleExts.Any(ext => name.EndsWith(ext))
+                                && (name.Contains(".en.") || name.Contains(".eng.") || name.Contains(".english."));
+                        });
+
+                    if (hasEnglishSubs)
+                    {
+                        _logger.LogInformation(
+                            "Skipping translation for {ItemName}: English subtitles already exist (FFprobe language fallback)",
+                            item.Name);
+                        return;
+                    }
+                }
+            }
+
+            // Determine source language: first non-English language, or "auto"
+            var sourceLanguage = resolvedLanguages
+                .FirstOrDefault(l => !string.Equals(l, "en", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(l, "auto", StringComparison.OrdinalIgnoreCase))
+                ?? "auto";
+
+            var tempAudioPath = Path.Combine(Path.GetTempPath(), $"{item.Id}_{Guid.NewGuid()}_translate.wav");
+            _logger.LogInformation("Generating English translation for {ItemName} (source: {SourceLanguage})",
+                item.Name, sourceLanguage);
+
+            try
+            {
+                SubtitleQueueService.Instance.ReportPhase("Extracting audio (translation)");
+                await ExtractAudioAsync(mediaPath, tempAudioPath, sourceLanguage, cancellationToken);
+                SubtitleQueueService.Instance.ReportPhase("Translating to English");
+                string srtContent = await provider.TranscribeAsync(tempAudioPath, sourceLanguage, cancellationToken, translate: true);
+
+                await File.WriteAllTextAsync(translatedSrtPath, srtContent, CancellationToken.None);
+                _logger.LogInformation("Saved translated subtitle to {SrtPath}", translatedSrtPath);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Cancelled translation for {ItemName}", item.Name);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating translated subtitle for {ItemName}", item.Name);
             }
             finally
             {

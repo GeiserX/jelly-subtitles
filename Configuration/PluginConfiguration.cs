@@ -30,6 +30,13 @@ namespace WhisperSubs.Configuration
         public bool EnableLyricsGeneration { get; set; } = false;
 
         /// <summary>
+        /// When enabled, generates English subtitles via whisper's --translate flag
+        /// for media that lacks an English audio track.
+        /// Only applies when SubtitleMode includes Full subtitles.
+        /// </summary>
+        public bool EnableTranslation { get; set; } = false;
+
+        /// <summary>
         /// Number of threads for whisper.cpp inference. 0 = whisper default (4).
         /// Higher values use more CPU cores for faster transcription.
         /// </summary>

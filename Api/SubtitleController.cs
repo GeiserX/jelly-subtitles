@@ -89,7 +89,7 @@ namespace WhisperSubs.Api
                 }
 
                 var config = Plugin.Instance.Configuration;
-                var typeStr = config.EnableLyricsGeneration ? "Movie,Episode,Audio" : "Movie,Episode";
+                var typeStr = config.EnableLyricsGeneration ? "Movie,Episode,Video,Audio" : "Movie,Episode,Video";
                 var includeTypes = GetBaseItemKinds(typeStr);
                 var allItems = _libraryManager.GetItemList(new MediaBrowser.Controller.Entities.InternalItemsQuery
                 {
@@ -204,7 +204,7 @@ namespace WhisperSubs.Api
                 var targetLanguage = language ?? config.DefaultLanguage;
 
                 // Resolve leaf items (Video / Audio) from the container
-                var typeStr = config.EnableLyricsGeneration ? "Movie,Episode,Audio" : "Movie,Episode";
+                var typeStr = config.EnableLyricsGeneration ? "Movie,Episode,Video,Audio" : "Movie,Episode,Video";
                 var includeTypes = GetBaseItemKinds(typeStr);
                 var children = _libraryManager.GetItemList(new InternalItemsQuery
                 {
