@@ -1,0 +1,9 @@
+description: "Jellyfin plugin for local AI-powered subtitle generation using Whisper — all processing stays on your server."
+personalNote: "Tired of missing subtitles on my media library, I built this plugin to auto-generate them using OpenAI's Whisper model. Runs entirely on your hardware — no cloud APIs, no data leaving your machine."
+keyFeatures:
+  - "AI-powered subtitle generation via Whisper"
+  - "Runs 100% locally on your server"
+  - "GPU acceleration support (NVIDIA CUDA)"
+  - "Automatic language detection"
+  - "Configurable model sizes for speed vs accuracy"
+techStack: "C#, Jellyfin Plugin API, Whisper"
