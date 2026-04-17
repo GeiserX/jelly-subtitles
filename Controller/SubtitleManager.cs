@@ -38,12 +38,8 @@ namespace WhisperSubs.Controller
                 return;
             }
 
-            var mediaPath = item.Path;
-            if (string.IsNullOrEmpty(mediaPath) || !File.Exists(mediaPath))
-            {
-                _logger.LogWarning("Media file not found for item {ItemName}", item.Name);
-                return;
-            }
+            var mediaPath = ResolveMediaPath(item);
+            if (mediaPath == null) return;
 
             var languages = await ResolveLanguagesAsync(mediaPath, language, cancellationToken);
             var subtitleMode = Plugin.Instance?.Configuration?.SubtitleMode ?? SubtitleMode.Full;
@@ -483,17 +479,56 @@ namespace WhisperSubs.Controller
         // ────────────────────────────────────────────────────────────
 
         /// <summary>
+        /// Resolve and validate the media file path for a library item.
+        /// Handles macOS Unicode normalization (NFD vs NFC) and provides
+        /// diagnostic logging when the file cannot be found.
+        /// </summary>
+        private string? ResolveMediaPath(BaseItem item)
+        {
+            var rawPath = item.Path;
+
+            if (string.IsNullOrEmpty(rawPath))
+            {
+                _logger.LogWarning(
+                    "Media path is null/empty for item \"{ItemName}\" (Id={ItemId}, Type={ItemType})",
+                    item.Name, item.Id, item.GetType().Name);
+                return null;
+            }
+
+            // Try the path as-is first
+            if (File.Exists(rawPath))
+                return rawPath;
+
+            // macOS APFS stores filenames in NFD (decomposed Unicode), but .NET
+            // strings are NFC (composed). Normalize and retry.
+            var normalized = rawPath.Normalize(System.Text.NormalizationForm.FormD);
+            if (normalized != rawPath && File.Exists(normalized))
+            {
+                _logger.LogInformation(
+                    "Resolved media path via Unicode normalization (NFD) for \"{ItemName}\"",
+                    item.Name);
+                return normalized;
+            }
+
+            // File genuinely not found — log diagnostics
+            var dir = Path.GetDirectoryName(rawPath);
+            var dirExists = !string.IsNullOrEmpty(dir) && Directory.Exists(dir);
+            _logger.LogWarning(
+                "Media file not found for item \"{ItemName}\": Path=\"{MediaPath}\", "
+                + "DirectoryExists={DirExists}, ItemType={ItemType}",
+                item.Name, rawPath, dirExists, item.GetType().Name);
+
+            return null;
+        }
+
+        /// <summary>
         /// Generates LRC lyrics for an audio item by transcribing with whisper
         /// and converting the SRT output to LRC format.
         /// </summary>
         private async Task GenerateLyricsAsync(BaseItem item, ISubtitleProvider provider, string language, CancellationToken cancellationToken)
         {
-            var mediaPath = item.Path;
-            if (string.IsNullOrEmpty(mediaPath) || !File.Exists(mediaPath))
-            {
-                _logger.LogWarning("Media file not found for item {ItemName}", item.Name);
-                return;
-            }
+            var mediaPath = ResolveMediaPath(item);
+            if (mediaPath == null) return;
 
             // Resolve transcription language (use first detected or configured).
             // Jellyfin expects a single track.lrc sidecar, not per-language files.
