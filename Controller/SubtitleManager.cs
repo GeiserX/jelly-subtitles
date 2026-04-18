@@ -204,10 +204,8 @@ namespace WhisperSubs.Controller
                 Directory.CreateDirectory(probeDir);
                 try
                 {
-                    var probeAudio = Path.Combine(probeDir, "probe.wav");
-                    await ExtractAudioAsync(mediaPath, probeAudio, null, cancellationToken);
                     var probeChunk = Path.Combine(probeDir, "probe_chunk.wav");
-                    await ExtractAudioChunkAsync(probeAudio, probeChunk, 0, 30.0, cancellationToken);
+                    await ExtractAudioChunkAsync(mediaPath, probeChunk, 0, 30.0, cancellationToken);
                     var (detectedLang, probability) = await provider.DetectLanguageAsync(probeChunk, cancellationToken);
 
                     if (string.Equals(detectedLang, "en", StringComparison.OrdinalIgnoreCase) && probability >= 0.3f)

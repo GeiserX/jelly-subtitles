@@ -41,9 +41,9 @@ Plugin.cs                          Entry point, IHasWebPages (embeds config UI)
 
 When `EnableTranslation` is enabled in config (and SubtitleMode is Full or FullAndForced):
 
-1. **English audio check** — FFprobe checks if any audio stream is already English. If so, translation is skipped entirely.
-2. **Existing file check** — If `<filename>.en.translated.srt` already exists, skip.
-3. **Source language selection** — Uses the first non-English language from resolved languages, or `"auto"` if none detected.
+1. **English audio check** — FFprobe checks if any audio stream is already English. If so, translation is skipped entirely. If FFprobe cannot resolve a language (returns `"auto"`), whisper detects the language from a 30-second audio sample; if English is detected with sufficient confidence (p>=0.3), translation is skipped.
+2. **Existing file check** — If `<filename>.en.translated.srt` already exists, skip. In `"auto"` mode, also checks for existing English subtitle files (`.en.srt`, `.eng.srt`, etc.).
+3. **Source language selection** — Uses the first non-English language from resolved languages. In `"auto"` mode, uses the whisper-detected language from step 1 if available, otherwise falls back to `"auto"`.
 4. **Transcription with translation** — Calls `WhisperProvider.TranscribeAsync(audioPath, sourceLanguage, ct, translate: true)`, which adds `--translate` to the whisper-cli invocation. Whisper's `--translate` flag always translates TO English.
 5. **Save** — Written as `<filename>.en.translated.srt`.
 

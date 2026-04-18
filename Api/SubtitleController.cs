@@ -214,7 +214,7 @@ namespace WhisperSubs.Api
                 }).Where(item => !string.IsNullOrEmpty(item.Path)).ToList();
 
                 // If this IS a leaf item itself, include it directly
-                if (children.Count == 0 && (parent is Video || (parent is MediaBrowser.Controller.Entities.Audio.Audio && config.EnableLyricsGeneration)))
+                if (children.Count == 0 && !string.IsNullOrEmpty(parent.Path) && (parent is Video || (parent is MediaBrowser.Controller.Entities.Audio.Audio && config.EnableLyricsGeneration)))
                 {
                     children = new List<BaseItem> { parent };
                 }
