@@ -170,11 +170,12 @@ namespace WhisperSubs.Controller
                 return;
             }
 
-            // Fallback: if FFprobe couldn't detect languages (resolved to "auto"),
-            // check if English subtitles already exist — skip if they do
+            // Determine source language and perform additional checks for "auto" mode
+            string sourceLanguage;
             if (resolvedLanguages.Count == 1
                 && string.Equals(resolvedLanguages[0], "auto", StringComparison.OrdinalIgnoreCase))
             {
+                // FFprobe couldn't detect languages — check if English subtitles already exist
                 var dir = Path.GetDirectoryName(mediaPath);
                 var baseName = Path.GetFileNameWithoutExtension(mediaPath);
                 if (dir != null)
@@ -196,13 +197,47 @@ namespace WhisperSubs.Controller
                         return;
                     }
                 }
-            }
 
-            // Determine source language: first non-English language, or "auto"
-            var sourceLanguage = resolvedLanguages
-                .FirstOrDefault(l => !string.Equals(l, "en", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(l, "auto", StringComparison.OrdinalIgnoreCase))
-                ?? "auto";
+                // Detect actual audio language via whisper before translating
+                sourceLanguage = "auto";
+                var probeDir = Path.Combine(Path.GetTempPath(), $"whispersubs_translate_probe_{Guid.NewGuid():N}");
+                Directory.CreateDirectory(probeDir);
+                try
+                {
+                    var probeChunk = Path.Combine(probeDir, "probe_chunk.wav");
+                    await ExtractAudioChunkAsync(mediaPath, probeChunk, 0, 30.0, cancellationToken);
+                    var (detectedLang, probability) = await provider.DetectLanguageAsync(probeChunk, cancellationToken);
+
+                    if (string.Equals(detectedLang, "en", StringComparison.OrdinalIgnoreCase) && probability >= 0.3f)
+                    {
+                        _logger.LogInformation(
+                            "Skipping translation for {ItemName}: whisper detected English audio (p={Probability:F3})",
+                            item.Name, probability);
+                        return;
+                    }
+
+                    sourceLanguage = detectedLang;
+                    _logger.LogInformation(
+                        "Detected source language {Language} (p={Probability:F3}) for translation of {ItemName}",
+                        detectedLang, probability, item.Name);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Language detection failed for {ItemName}, proceeding with auto translation", item.Name);
+                }
+                finally
+                {
+                    try { if (Directory.Exists(probeDir)) Directory.Delete(probeDir, true); } catch { }
+                }
+            }
+            else
+            {
+                sourceLanguage = resolvedLanguages
+                    .FirstOrDefault(l => !string.Equals(l, "en", StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(l, "auto", StringComparison.OrdinalIgnoreCase))
+                    ?? "auto";
+            }
 
             var tempAudioPath = Path.Combine(Path.GetTempPath(), $"{item.Id}_{Guid.NewGuid()}_translate.wav");
             _logger.LogInformation("Generating English translation for {ItemName} (source: {SourceLanguage})",
