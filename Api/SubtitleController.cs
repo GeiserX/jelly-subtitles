@@ -96,7 +96,7 @@ namespace WhisperSubs.Api
                     ParentId = library.Id,
                     IncludeItemTypes = includeTypes,
                     Recursive = true
-                });
+                }).Where(item => !string.IsNullOrEmpty(item.Path)).ToList();
 
                 var totalCount = allItems.Count;
 
@@ -211,7 +211,7 @@ namespace WhisperSubs.Api
                     ParentId = parent.Id,
                     IncludeItemTypes = includeTypes,
                     Recursive = true
-                });
+                }).Where(item => !string.IsNullOrEmpty(item.Path)).ToList();
 
                 // If this IS a leaf item itself, include it directly
                 if (children.Count == 0 && (parent is Video || (parent is MediaBrowser.Controller.Entities.Audio.Audio && config.EnableLyricsGeneration)))
@@ -356,6 +356,7 @@ namespace WhisperSubs.Api
                         ItemId = itemId,
                         HasGeneratedSubtitle = fullFiles.Count > 0,
                         HasForcedSubtitle = forcedFiles.Count > 0,
+                        HasExistingSubtitles = item is Video v1 && v1.HasSubtitles,
                         SubtitlePath = found.Count > 0 ? string.Join("; ", found) : null
                     });
                 }
@@ -370,6 +371,7 @@ namespace WhisperSubs.Api
                     ItemId = itemId,
                     HasGeneratedSubtitle = hasGeneratedSubtitle,
                     HasForcedSubtitle = hasForcedSubtitle,
+                    HasExistingSubtitles = item is Video v2 && v2.HasSubtitles,
                     SubtitlePath = hasGeneratedSubtitle ? subtitlePath : null
                 });
             }
@@ -724,6 +726,7 @@ namespace WhisperSubs.Api
         public string ItemId { get; set; } = string.Empty;
         public bool HasGeneratedSubtitle { get; set; }
         public bool HasForcedSubtitle { get; set; }
+        public bool HasExistingSubtitles { get; set; }
         public string? SubtitlePath { get; set; }
     }
 

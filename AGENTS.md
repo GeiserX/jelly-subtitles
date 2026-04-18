@@ -37,6 +37,18 @@ Plugin.cs                          Entry point, IHasWebPages (embeds config UI)
 4. **Save** — The SRT content is written alongside the media as `<filename>.<lang>.generated.srt`.
 5. **Metadata refresh** — `item.RefreshMetadata()` tells Jellyfin to pick up the new subtitle file.
 
+### Data Flow — English Translation (v3.11.0.0+)
+
+When `EnableTranslation` is enabled in config (and SubtitleMode is Full or FullAndForced):
+
+1. **English audio check** — FFprobe checks if any audio stream is already English. If so, translation is skipped entirely.
+2. **Existing file check** — If `<filename>.en.translated.srt` already exists, skip.
+3. **Source language selection** — Uses the first non-English language from resolved languages, or `"auto"` if none detected.
+4. **Transcription with translation** — Calls `WhisperProvider.TranscribeAsync(audioPath, sourceLanguage, ct, translate: true)`, which adds `--translate` to the whisper-cli invocation. Whisper's `--translate` flag always translates TO English.
+5. **Save** — Written as `<filename>.en.translated.srt`.
+
+**Important:** The `language` argument to `TranscribeAsync` must be the SOURCE language (e.g., `es`), not `en`. Whisper uses `-l` to set the source language and `--translate` to indicate output should be English.
+
 ### Data Flow — Forced Subtitles (v3.0.0+)
 
 Forced subtitles capture only foreign-language dialogue segments (e.g., Russian dialogue in an English film). The pipeline:

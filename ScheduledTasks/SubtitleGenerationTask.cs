@@ -128,6 +128,9 @@ namespace WhisperSubs.ScheduledTasks
 
                 foreach (var queryItem in items)
                 {
+                    // Skip virtual/placeholder items with no media file
+                    if (string.IsNullOrEmpty(queryItem.Path)) continue;
+
                     if (queryItem is Video video)
                     {
                         if (!needsForced && !needsTranslation && video.HasSubtitles) continue;
@@ -222,6 +225,12 @@ namespace WhisperSubs.ScheduledTasks
                                         && !name.Contains(".forced.")
                                         && !name.Contains(".generated.");
                                 });
+                        }
+
+                        // Check for embedded subtitle streams (MKV, MP4, etc.)
+                        if (!hasFullSrt && item is Video embeddedCheck && embeddedCheck.HasSubtitles)
+                        {
+                            hasFullSrt = true;
                         }
                         var hasForcedSrt = existingFiles.Any(f => System.IO.Path.GetFileName(f).Contains(".forced.")) || noForeignMarkers.Length > 0;
 
