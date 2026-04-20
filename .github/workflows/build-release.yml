@@ -3,7 +3,16 @@ name: Build and Release
 on:
   push:
     branches: [main]
+    paths:
+      - '**/*.cs'
+      - '**/*.csproj'
+      - '**/*.sln'
+      - '.github/workflows/build-release.yml'
   workflow_dispatch:
+
+concurrency:
+  group: build-release-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -46,11 +55,19 @@ jobs:
             pre_install: "vulkan"
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Cache whisper binary
+        id: cache-whisper
+        uses: actions/cache@v4
+        with:
+          path: /tmp/whisper/build/bin/whisper-cli
+          key: whisper-1.8.4-${{ matrix.asset_name }}-v1
+
       - name: Install build dependencies
+        if: steps.cache-whisper.outputs.cache-hit != 'true'
         run: sudo apt-get update && sudo apt-get install -y cmake g++ make
 
       - name: Install CUDA Toolkit
-        if: matrix.pre_install == 'cuda'
+        if: steps.cache-whisper.outputs.cache-hit != 'true' && matrix.pre_install == 'cuda'
         uses: Jimver/cuda-toolkit@v0.2.23
         with:
           cuda: '12.6.3'
@@ -58,18 +75,20 @@ jobs:
           sub-packages: '["nvcc", "cudart-dev"]'
 
       - name: Install cuBLAS
-        if: matrix.pre_install == 'cuda'
+        if: steps.cache-whisper.outputs.cache-hit != 'true' && matrix.pre_install == 'cuda'
         run: sudo apt-get install -y libcublas-dev-12-6
 
       - name: Install Vulkan SDK
-        if: matrix.pre_install == 'vulkan'
+        if: steps.cache-whisper.outputs.cache-hit != 'true' && matrix.pre_install == 'vulkan'
         run: |
           sudo apt-get install -y glslc libvulkan-dev
 
       - name: Clone whisper.cpp
+        if: steps.cache-whisper.outputs.cache-hit != 'true'
         run: git clone --depth 1 --branch v1.8.4 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper
 
       - name: Build whisper-cli
+        if: steps.cache-whisper.outputs.cache-hit != 'true'
         run: |
           cd /tmp/whisper
           cmake -B build \
@@ -91,13 +110,23 @@ jobs:
     container:
       image: rocm/dev-ubuntu-22.04:6.1.2
     steps:
+      - name: Cache whisper ROCm binary
+        id: cache-whisper-rocm
+        uses: actions/cache@v4
+        with:
+          path: /tmp/whisper/build/bin/whisper-cli
+          key: whisper-1.8.4-rocm-6.1.2-v1
+
       - name: Install build dependencies
+        if: steps.cache-whisper-rocm.outputs.cache-hit != 'true'
         run: apt-get update && apt-get install -y cmake g++ make git rocblas-dev hipblas-dev
 
       - name: Clone whisper.cpp
+        if: steps.cache-whisper-rocm.outputs.cache-hit != 'true'
         run: git clone --depth 1 --branch v1.8.4 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper
 
       - name: Build whisper-cli
+        if: steps.cache-whisper-rocm.outputs.cache-hit != 'true'
         run: |
           cd /tmp/whisper
           cmake -B build \
