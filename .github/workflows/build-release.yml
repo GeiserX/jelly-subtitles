@@ -27,7 +27,7 @@ jobs:
       matrix:
         include:
           # CPU-only builds
-          - os: ubuntu-latest
+          - os: [self-hosted, Linux, X64, geiserback]
             platform: linux-x64
             variant: cpu
             asset_name: whisper-cli-linux-x64
@@ -40,14 +40,14 @@ jobs:
             cmake_flags: ""
             pre_install: ""
           # CUDA 12 (NVIDIA GPU)
-          - os: ubuntu-latest
+          - os: [self-hosted, Linux, X64, geiserback]
             platform: linux-x64
             variant: cuda12
             asset_name: whisper-cli-linux-x64-cuda12
             cmake_flags: "-DGGML_CUDA=ON"
             pre_install: "cuda"
           # Vulkan (Intel/AMD/NVIDIA GPU)
-          - os: ubuntu-latest
+          - os: [self-hosted, Linux, X64, geiserback]
             platform: linux-x64
             variant: vulkan
             asset_name: whisper-cli-linux-x64-vulkan
@@ -106,7 +106,7 @@ jobs:
 
   # ── Build whisper.cpp ROCm binary (needs full SDK container) ───────
   build-whisper-rocm:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, geiserback]
     container:
       image: rocm/dev-ubuntu-22.04:6.1.2
     steps:
@@ -147,7 +147,7 @@ jobs:
   # ── Build plugin + create release ──────────────────────────────────
   build:
     needs: [build-whisper, build-whisper-rocm]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, geiserback]
     steps:
       - uses: actions/checkout@v4
 
