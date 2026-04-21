@@ -105,44 +105,46 @@ jobs:
           path: /tmp/whisper/build/bin/whisper-cli
 
   # ── Build whisper.cpp ROCm binary (needs full SDK container) ───────
+  # NOTE: Cannot use `container:` with self-hosted runners — JavaScript actions
+  # (cache, upload-artifact) fail because Node.js isn't mapped into the container.
+  # Instead, run the ROCm build via `docker run` so actions execute natively.
   build-whisper-rocm:
     runs-on: [self-hosted, Linux, X64]
-    container:
-      image: rocm/dev-ubuntu-22.04:6.1.2
     steps:
       - name: Cache whisper ROCm binary
         id: cache-whisper-rocm
         uses: actions/cache@v4
         with:
-          path: /tmp/whisper/build/bin/whisper-cli
+          path: ${{ github.workspace }}/rocm-output/whisper-cli
           key: whisper-1.8.4-rocm-6.1.2-v1
 
-      - name: Install build dependencies
-        if: steps.cache-whisper-rocm.outputs.cache-hit != 'true'
-        run: apt-get update && apt-get install -y cmake g++ make git rocblas-dev hipblas-dev
-
-      - name: Clone whisper.cpp
-        if: steps.cache-whisper-rocm.outputs.cache-hit != 'true'
-        run: git clone --depth 1 --branch v1.8.4 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper
-
-      - name: Build whisper-cli
+      - name: Build whisper-cli with ROCm
         if: steps.cache-whisper-rocm.outputs.cache-hit != 'true'
         run: |
-          cd /tmp/whisper
-          cmake -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SHARED_LIBS=OFF \
-            -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++" \
-            -DGGML_HIP=ON \
-            -DCMAKE_C_COMPILER=hipcc \
-            -DCMAKE_CXX_COMPILER=hipcc
-          cmake --build build --config Release -j$(nproc)
+          mkdir -p "$GITHUB_WORKSPACE/rocm-output"
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/rocm-output":/output \
+            rocm/dev-ubuntu-22.04:6.1.2 \
+            bash -c '
+              apt-get update && apt-get install -y cmake g++ make git rocblas-dev hipblas-dev &&
+              git clone --depth 1 --branch v1.8.4 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper &&
+              cd /tmp/whisper &&
+              cmake -B build \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DBUILD_SHARED_LIBS=OFF \
+                -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++" \
+                -DGGML_HIP=ON \
+                -DCMAKE_C_COMPILER=hipcc \
+                -DCMAKE_CXX_COMPILER=hipcc &&
+              cmake --build build --config Release -j$(nproc) &&
+              cp build/bin/whisper-cli /output/
+            '
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: whisper-cli-linux-x64-rocm
-          path: /tmp/whisper/build/bin/whisper-cli
+          path: ${{ github.workspace }}/rocm-output/whisper-cli
 
   # ── Build plugin + create release ──────────────────────────────────
   build:
