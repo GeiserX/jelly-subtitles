@@ -5,7 +5,7 @@ on:
 
 jobs:
   stale:
-    runs-on: [self-hosted, Linux, X64, geiserback]
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - name: Setup Node.js
         uses: actions/setup-node@v4
