@@ -364,7 +364,8 @@ docker inspect jellyfin --format '{{range .Mounts}}{{.Source}} -> {{.Destination
 
 ## Development Notes
 
-- The `.csproj` targets `net9.0` and references `Jellyfin.Model` and `Jellyfin.Controller` 10.11.8.
+- The `.csproj` targets `net9.0` and references `Jellyfin.Model` and `Jellyfin.Controller` 10.11.0.
+- **Jellyfin SDK pinning**: ALWAYS pin `Jellyfin.Controller` and `Jellyfin.Model` to the MINIMUM supported minor version (e.g., `10.11.0`), NEVER use wildcards like `10.11.*` or exact higher patches like `10.11.8`. Wildcards resolve to the latest patch at build time, which breaks users on older patch versions with `ReflectionTypeLoadException`. All plugin APIs used are stable across patch versions.
 - The config page HTML is an embedded resource — changes require rebuilding the DLL.
 - `Plugin.Instance` is a static singleton set in the constructor. All components access config via `Plugin.Instance.Configuration`.
 - The `ISubtitleProvider` interface is designed for extensibility (Parakeet, custom commands), but only `WhisperProvider` is currently implemented.
