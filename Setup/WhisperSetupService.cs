@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -94,6 +95,7 @@ namespace WhisperSubs.Setup
         /// Checks whether the auto-downloaded binary and model exist.
         /// Also checks if the current config already points to valid files.
         /// </summary>
+        [ExcludeFromCodeCoverage(Justification = "Requires Plugin.Instance (Jellyfin runtime)")]
         public SetupStatus GetStatus()
         {
             var config = Plugin.Instance.Configuration;
@@ -143,6 +145,7 @@ namespace WhisperSubs.Setup
         /// <summary>
         /// Downloads a whisper model. Caller must call TryAcquire("model", ...) first.
         /// </summary>
+        [ExcludeFromCodeCoverage(Justification = "HTTP download + Plugin.Instance")]
         public async Task DownloadModelAsync(string modelFileName, CancellationToken cancellationToken)
         {
             try
@@ -362,6 +365,7 @@ namespace WhisperSubs.Setup
         /// matching the current plugin version. Caller must call TryAcquire("binary", ...) first.
         /// </summary>
         /// <param name="variant">Binary variant: "cpu", "cuda12", "vulkan", or "rocm".</param>
+        [ExcludeFromCodeCoverage(Justification = "HTTP download + Plugin.Instance + process validation")]
         public async Task DownloadBinaryAsync(string variant, CancellationToken cancellationToken)
         {
             try
@@ -488,6 +492,7 @@ namespace WhisperSubs.Setup
         /// Returns null on success, or a user-friendly error message on failure
         /// (e.g. missing shared libraries like libvulkan.so.1).
         /// </summary>
+        [ExcludeFromCodeCoverage(Justification = "Spawns binary process for validation")]
         private string? ValidateBinary(string binaryPath, string variant)
         {
             try
