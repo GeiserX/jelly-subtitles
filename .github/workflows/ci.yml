@@ -1,13 +1,11 @@
 name: CI
 
 on:
+  workflow_dispatch:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
-    paths:
-      - '**/*.cs'
-      - '**/*.csproj'
-      - '**/*.sln'
-      - '.github/workflows/ci.yml'
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
@@ -15,7 +13,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
