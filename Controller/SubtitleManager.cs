@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -27,6 +28,7 @@ namespace WhisperSubs.Controller
             _logger = logger;
         }
 
+        [ExcludeFromCodeCoverage(Justification = "Orchestrates external processes (FFmpeg, whisper) and Jellyfin plugin APIs")]
         public async Task GenerateSubtitleAsync(BaseItem item, ISubtitleProvider provider, string language, CancellationToken cancellationToken)
         {
             if (item == null) throw new ArgumentNullException(nameof(item));
@@ -71,6 +73,7 @@ namespace WhisperSubs.Controller
         /// <summary>
         /// Generates a full (complete) subtitle file for a single language. Existing v2.5 behavior.
         /// </summary>
+        [ExcludeFromCodeCoverage(Justification = "Orchestrates FFmpeg audio extraction and whisper transcription processes")]
         private async Task GenerateFullSubtitleForLanguageAsync(
             BaseItem item, ISubtitleProvider provider, string lang,
             string mediaPath, CancellationToken cancellationToken)
@@ -150,6 +153,7 @@ namespace WhisperSubs.Controller
         /// Only runs when: no English audio stream detected, no existing .en.translated.srt,
         /// and (as fallback) no existing English subtitle files when FFprobe couldn't detect languages.
         /// </summary>
+        [ExcludeFromCodeCoverage(Justification = "Orchestrates FFmpeg + whisper processes for translation")]
         private async Task GenerateTranslatedSubtitleAsync(
             BaseItem item, ISubtitleProvider provider, string mediaPath,
             List<string> resolvedLanguages, CancellationToken cancellationToken)
@@ -277,6 +281,7 @@ namespace WhisperSubs.Controller
         /// Uses VAD-based chunking, per-chunk language detection, and selective transcription.
         /// Output: Movie.{lang}.forced.generated.srt
         /// </summary>
+        [ExcludeFromCodeCoverage(Justification = "Orchestrates FFmpeg VAD + whisper language detection processes")]
         private async Task GenerateForcedSubtitleAsync(
             BaseItem item, ISubtitleProvider provider, string primaryLanguage,
             string mediaPath, CancellationToken cancellationToken)
@@ -560,6 +565,7 @@ namespace WhisperSubs.Controller
         /// Generates LRC lyrics for an audio item by transcribing with whisper
         /// and converting the SRT output to LRC format.
         /// </summary>
+        [ExcludeFromCodeCoverage(Justification = "Orchestrates FFmpeg + whisper processes for lyrics")]
         private async Task GenerateLyricsAsync(BaseItem item, ISubtitleProvider provider, string language, CancellationToken cancellationToken)
         {
             var mediaPath = ResolveMediaPath(item);
@@ -575,6 +581,7 @@ namespace WhisperSubs.Controller
             await item.RefreshMetadata(cancellationToken);
         }
 
+        [ExcludeFromCodeCoverage(Justification = "Orchestrates FFmpeg + whisper processes for lyrics track")]
         private async Task GenerateLyricsForTrackAsync(
             BaseItem item, ISubtitleProvider provider, string lang,
             string mediaPath, CancellationToken cancellationToken)
@@ -676,6 +683,7 @@ namespace WhisperSubs.Controller
         /// Uses FFmpeg silencedetect to find speech segments in an audio file.
         /// Returns a list of (start, end) time ranges where speech is present.
         /// </summary>
+        [ExcludeFromCodeCoverage(Justification = "Spawns FFmpeg silencedetect process")]
         private async Task<List<(double Start, double End)>> DetectSpeechSegmentsAsync(
             string audioPath, double totalDuration, CancellationToken cancellationToken)
         {
@@ -869,6 +877,7 @@ namespace WhisperSubs.Controller
         /// <summary>
         /// Extracts an audio chunk from a WAV file using FFmpeg.
         /// </summary>
+        [ExcludeFromCodeCoverage(Justification = "Spawns FFmpeg process for audio extraction")]
         private async Task ExtractAudioChunkAsync(
             string sourceAudioPath, string outputPath,
             double startSeconds, double durationSeconds,
@@ -955,6 +964,7 @@ namespace WhisperSubs.Controller
         /// Uses FFprobe to extract audio stream language tags from a media file.
         /// Returns distinct ISO 639-1 language codes (e.g. "es", "en").
         /// </summary>
+        [ExcludeFromCodeCoverage(Justification = "Spawns FFprobe process")]
         public async Task<List<string>> DetectAudioLanguagesAsync(string mediaPath, CancellationToken cancellationToken)
         {
             var ffprobePath = FindFfprobeExecutable();
@@ -1040,6 +1050,7 @@ namespace WhisperSubs.Controller
             return languages;
         }
 
+        [ExcludeFromCodeCoverage(Justification = "Spawns FFprobe process")]
         private async Task<int> FindAudioStreamIndexAsync(string mediaPath, string language, CancellationToken cancellationToken)
         {
             var ffprobePath = FindFfprobeExecutable();
@@ -1111,6 +1122,7 @@ namespace WhisperSubs.Controller
             return -1;
         }
 
+        [ExcludeFromCodeCoverage(Justification = "Spawns FFmpeg process for audio extraction")]
         private async Task ExtractAudioAsync(string videoPath, string outputAudioPath, string? targetLanguage, CancellationToken cancellationToken, double startOffsetSeconds = 0)
         {
             var ffmpegPath = FindFfmpegExecutable();
@@ -1203,6 +1215,7 @@ namespace WhisperSubs.Controller
             _logger.LogInformation("Extracted audio to {AudioPath}", outputAudioPath);
         }
 
+        [ExcludeFromCodeCoverage(Justification = "Spawns FFprobe process for duration query")]
         private async Task<double> GetMediaDurationAsync(string mediaPath, CancellationToken cancellationToken)
         {
             var ffprobePath = FindFfprobeExecutable();

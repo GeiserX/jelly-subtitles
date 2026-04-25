@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
@@ -117,6 +118,7 @@ namespace WhisperSubs.Controller
             Interlocked.Exchange(ref _taskIsRunning, 0);
         }
 
+        [ExcludeFromCodeCoverage(Justification = "Requires Plugin.Instance")]
         private static string QueueFilePath
         {
             get
@@ -128,6 +130,7 @@ namespace WhisperSubs.Controller
             }
         }
 
+        [ExcludeFromCodeCoverage(Justification = "Requires BaseItem + Plugin.Instance for persistence")]
         public void Enqueue(BaseItem item, string language)
         {
             _priorityQueue.Enqueue(new SubtitleWorkItem
@@ -139,6 +142,7 @@ namespace WhisperSubs.Controller
             PersistQueue();
         }
 
+        [ExcludeFromCodeCoverage(Justification = "Requires BaseItem + Plugin.Instance for persistence")]
         public Task EnqueuePriorityAsync(BaseItem item, string language)
         {
             var tcs = new TaskCompletionSource<bool>();
@@ -152,6 +156,7 @@ namespace WhisperSubs.Controller
             return tcs.Task;
         }
 
+        [ExcludeFromCodeCoverage(Justification = "Requires Plugin.Instance for persistence")]
         public bool TryDequeuePriority(out SubtitleWorkItem? item)
         {
             var result = _priorityQueue.TryDequeue(out item);
@@ -162,6 +167,7 @@ namespace WhisperSubs.Controller
         /// <summary>
         /// Restores queue from disk on startup. Call after Jellyfin library is available.
         /// </summary>
+        [ExcludeFromCodeCoverage(Justification = "Requires Plugin.Instance + ILibraryManager")]
         public int RestoreQueue(ILibraryManager libraryManager, ILogger logger)
         {
             var path = QueueFilePath;
@@ -199,6 +205,7 @@ namespace WhisperSubs.Controller
             }
         }
 
+        [ExcludeFromCodeCoverage(Justification = "Requires Plugin.Instance for file path")]
         private void PersistQueue()
         {
             var path = QueueFilePath;
@@ -229,6 +236,7 @@ namespace WhisperSubs.Controller
         /// Safe to call multiple times — only one drain runs at a time.
         /// Re-checks queue after draining to avoid race with late enqueues.
         /// </summary>
+        [ExcludeFromCodeCoverage(Justification = "Orchestrates async drain loop with external processes")]
         public void EnsureDraining(
             SubtitleManager manager,
             ISubtitleProvider provider,
@@ -259,6 +267,7 @@ namespace WhisperSubs.Controller
             }
         }
 
+        [ExcludeFromCodeCoverage(Justification = "Orchestrates async drain with external processes")]
         private async Task DrainLoopAsync(
             SubtitleManager manager,
             ISubtitleProvider provider,
@@ -307,6 +316,7 @@ namespace WhisperSubs.Controller
         /// <summary>
         /// Process all pending priority items. Called by scheduled task.
         /// </summary>
+        [ExcludeFromCodeCoverage(Justification = "Orchestrates async drain with external processes")]
         public async Task DrainPriorityAsync(
             SubtitleManager manager,
             ISubtitleProvider provider,

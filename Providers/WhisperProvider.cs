@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -43,6 +44,12 @@ namespace WhisperSubs.Providers
                 throw new FileNotFoundException($"Audio file not found: {audioPath}");
             }
 
+            return await TranscribeInternalAsync(audioPath, language, cancellationToken, translate);
+        }
+
+        [ExcludeFromCodeCoverage(Justification = "Spawns whisper-cli process")]
+        private async Task<string> TranscribeInternalAsync(string audioPath, string language, CancellationToken cancellationToken, bool translate)
+        {
             var tempOutputPrefix = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
             var tempSrtPath = tempOutputPrefix + ".srt";
 
@@ -203,6 +210,12 @@ namespace WhisperSubs.Providers
                 throw new FileNotFoundException($"Audio file not found: {audioPath}");
             }
 
+            return await DetectLanguageInternalAsync(audioPath, cancellationToken);
+        }
+
+        [ExcludeFromCodeCoverage(Justification = "Spawns whisper-cli process for language detection")]
+        private async Task<(string Language, float Probability)> DetectLanguageInternalAsync(string audioPath, CancellationToken cancellationToken)
+        {
             var whisperExecutable = FindWhisperExecutable();
             if (whisperExecutable == null)
             {
