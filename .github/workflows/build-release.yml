@@ -61,8 +61,8 @@ jobs:
         id: cache-whisper
         uses: actions/cache@v4
         with:
-          path: /tmp/whisper/build/bin/whisper-cli
-          key: whisper-1.8.4-${{ matrix.asset_name }}-v1
+          path: /tmp/whisper-${{ matrix.variant }}/build/bin/whisper-cli
+          key: whisper-1.8.4-${{ matrix.asset_name }}-v2
 
       - name: Install build dependencies
         if: steps.cache-whisper.outputs.cache-hit != 'true'
@@ -87,12 +87,12 @@ jobs:
 
       - name: Clone whisper.cpp
         if: steps.cache-whisper.outputs.cache-hit != 'true'
-        run: git clone --depth 1 --branch v1.8.4 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper
+        run: git clone --depth 1 --branch v1.8.4 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper-${{ matrix.variant }}
 
       - name: Build whisper-cli
         if: steps.cache-whisper.outputs.cache-hit != 'true'
         run: |
-          cd /tmp/whisper
+          cd /tmp/whisper-${{ matrix.variant }}
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=OFF \
@@ -104,7 +104,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: /tmp/whisper/build/bin/whisper-cli
+          path: /tmp/whisper-${{ matrix.variant }}/build/bin/whisper-cli
 
   # ── Build whisper.cpp ROCm binary (needs full SDK container) ───────
   # NOTE: Cannot use `container:` with self-hosted runners — JavaScript actions

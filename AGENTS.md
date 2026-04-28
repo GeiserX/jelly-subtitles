@@ -137,6 +137,8 @@ Version is read from `<Version>` in `WhisperSubs.csproj`. Bump it there before p
 
 **Note:** The `manifest.json` in the source tree is NOT authoritative — CI generates a fresh one with the correct version, checksum, and `sourceUrl` and deploys it to GitHub Pages. The checked-in copy is stale and only exists for reference.
 
+**Hard-won CI lesson — whisper binary cache poisoning (v3.11.3–v3.12.0):** All x64 matrix jobs (cpu, cuda, vulkan) run on the SAME self-hosted runner. If they share an identical filesystem path for the cache (e.g., `/tmp/whisper/build/bin/whisper-cli`), `actions/cache` saves whichever variant finishes first. Subsequent runs get a cache hit but restore the WRONG binary (or a stale/empty one from a cancelled build). Fix: use per-variant paths (`/tmp/whisper-${{ matrix.variant }}/...`) so each job's cache is isolated. `softprops/action-gh-release` silently skips missing files — no error, just absent assets.
+
 ## Config Page (Web UI)
 
 `Web/configPage.html` is embedded as a resource (`EmbeddedResourcePath` in `Plugin.cs`).
