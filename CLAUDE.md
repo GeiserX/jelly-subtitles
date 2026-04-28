@@ -1,4 +1,4 @@
-# AGENTS.md — WhisperSubs
+# CLAUDE.md — WhisperSubs
 
 ## Project Overview
 
