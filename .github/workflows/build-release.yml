@@ -22,6 +22,8 @@ permissions:
 jobs:
   # ── Build whisper.cpp static binaries ──────────────────────────────
   build-whisper:
+    needs: [check-version]
+    if: needs.check-version.outputs.should_release == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -109,6 +111,8 @@ jobs:
   # (cache, upload-artifact) fail because Node.js isn't mapped into the container.
   # Instead, run the ROCm build via `docker run` so actions execute natively.
   build-whisper-rocm:
+    needs: [check-version]
+    if: needs.check-version.outputs.should_release == 'true'
     runs-on: [self-hosted, Linux, X64]
     steps:
       - name: Cache whisper ROCm binary
