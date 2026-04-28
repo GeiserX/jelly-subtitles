@@ -61,18 +61,14 @@ namespace WhisperSubs.ScheduledTasks
                 return;
             }
 
-            if (string.IsNullOrEmpty(config.WhisperModelPath))
+            if (string.IsNullOrWhiteSpace(config.RemoteWhisperApiUrl) && string.IsNullOrWhiteSpace(config.WhisperModelPath))
             {
-                _logger.LogWarning("Whisper model path is not configured, aborting task");
+                _logger.LogWarning("Neither remote API URL nor local model path is configured, aborting task");
                 return;
             }
 
             var manager = new SubtitleManager(_libraryManager, _loggerFactory.CreateLogger<SubtitleManager>());
-            var provider = new WhisperProvider(
-                _loggerFactory.CreateLogger<WhisperProvider>(),
-                config.WhisperModelPath,
-                config.WhisperBinaryPath,
-                config.WhisperThreadCount);
+            var provider = SubtitleProviderFactory.Create(config, _loggerFactory);
             var language = config.DefaultLanguage;
             var queue = SubtitleQueueService.Instance;
 

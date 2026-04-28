@@ -183,6 +183,22 @@
 
                     <!-- ── Advanced / Manual Install ──────────────────── -->
                     <details style="margin-top:1.5em;">
+                        <summary style="cursor:pointer; font-size:1.2em; font-weight:bold; padding:0.5em 0;">Remote Whisper API (Optional)</summary>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtRemoteWhisperApiUrl">Remote API URL</label>
+                            <input type="text" id="txtRemoteWhisperApiUrl" name="RemoteWhisperApiUrl" class="emby-input" placeholder="http://192.168.1.100:8000" />
+                            <div class="fieldDescription">URL of an OpenAI-compatible Whisper API (e.g. faster-whisper-server, speaches). When set, audio is sent to this server instead of running whisper locally. Leave empty to use local whisper-cli.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtRemoteWhisperModel">Remote Model Name</label>
+                            <input type="text" id="txtRemoteWhisperModel" name="RemoteWhisperModel" class="emby-input" placeholder="Systran/faster-whisper-large-v3" />
+                            <div class="fieldDescription">Model identifier to request from the remote API. For speaches: a Hugging Face model ID. For OpenAI: "whisper-1".</div>
+                        </div>
+                    </details>
+
+                    <details style="margin-top:1.5em;">
                         <summary style="cursor:pointer; font-size:1.2em; font-weight:bold; padding:0.5em 0;">Advanced / Manual Install</summary>
 
                         <div class="inputContainer">
@@ -780,6 +796,8 @@
                             page.querySelector('#txtWhisperBinaryPath').value = config.WhisperBinaryPath || '';
                             page.querySelector('#txtWhisperModelPath').value = config.WhisperModelPath || '';
                             page.querySelector('#txtWhisperThreadCount').value = (config.WhisperThreadCount || 0).toString();
+                            page.querySelector('#txtRemoteWhisperApiUrl').value = config.RemoteWhisperApiUrl || '';
+                            page.querySelector('#txtRemoteWhisperModel').value = config.RemoteWhisperModel || 'Systran/faster-whisper-large-v3';
                             page.querySelector('#selectDefaultLanguage').value = config.DefaultLanguage || 'auto';
                             page.querySelector('#selectSubtitleMode').value = (config.SubtitleMode != null ? config.SubtitleMode : 0).toString();
                             page.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration || false;
@@ -797,6 +815,8 @@
                         config.WhisperBinaryPath = page.querySelector('#txtWhisperBinaryPath').value;
                         config.WhisperModelPath = page.querySelector('#txtWhisperModelPath').value;
                         config.WhisperThreadCount = parseInt(page.querySelector('#txtWhisperThreadCount').value, 10) || 0;
+                        config.RemoteWhisperApiUrl = (page.querySelector('#txtRemoteWhisperApiUrl').value || '').trim();
+                        config.RemoteWhisperModel = (page.querySelector('#txtRemoteWhisperModel').value || '').trim() || 'Systran/faster-whisper-large-v3';
                         config.DefaultLanguage = page.querySelector('#selectDefaultLanguage').value || 'auto';
                         config.SubtitleMode = parseInt(page.querySelector('#selectSubtitleMode').value, 10) || 0;
                         config.EnableAutoGeneration = page.querySelector('#chkEnableAutoGeneration').checked;

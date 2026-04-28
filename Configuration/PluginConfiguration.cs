@@ -42,6 +42,20 @@ namespace WhisperSubs.Configuration
         /// </summary>
         public int WhisperThreadCount { get; set; } = 0;
 
+        /// <summary>
+        /// Optional URL of an OpenAI-compatible Whisper API server (e.g. faster-whisper-server/speaches).
+        /// When set, audio is sent to this endpoint instead of running whisper-cli locally.
+        /// Example: http://192.168.1.100:8000
+        /// </summary>
+        public string RemoteWhisperApiUrl { get; set; } = "";
+
+        /// <summary>
+        /// Model name to request from the remote API.
+        /// For speaches/faster-whisper-server: a Hugging Face model ID (e.g. "Systran/faster-whisper-large-v3").
+        /// For OpenAI: "whisper-1".
+        /// </summary>
+        public string RemoteWhisperModel { get; set; } = "Systran/faster-whisper-large-v3";
+
         public List<string> EnabledLibraries { get; set; } = new List<string>();
 
         public PluginConfiguration()
