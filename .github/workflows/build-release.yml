@@ -28,29 +28,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # CPU-only builds
-          - os: [self-hosted, Linux, X64]
-            platform: linux-x64
+          - os: ubuntu-24.04
             variant: cpu
             asset_name: whisper-cli-linux-x64
             cmake_flags: ""
             pre_install: ""
           - os: ubuntu-24.04-arm
-            platform: linux-arm64
             variant: cpu
             asset_name: whisper-cli-linux-arm64
             cmake_flags: ""
             pre_install: ""
-          # CUDA 12 (NVIDIA GPU)
-          - os: [self-hosted, Linux, X64]
-            platform: linux-x64
+          - os: ubuntu-24.04
             variant: cuda12
             asset_name: whisper-cli-linux-x64-cuda12
             cmake_flags: "-DGGML_CUDA=ON"
             pre_install: "cuda"
-          # Vulkan (Intel/AMD/NVIDIA GPU)
-          - os: [self-hosted, Linux, X64]
-            platform: linux-x64
+          - os: ubuntu-24.04
             variant: vulkan
             asset_name: whisper-cli-linux-x64-vulkan
             cmake_flags: "-DGGML_VULKAN=ON"
@@ -62,7 +55,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/whisper-${{ matrix.variant }}/build/bin/whisper-cli
-          key: whisper-1.8.4-${{ matrix.asset_name }}-v2
+          key: whisper-1.8.4-${{ matrix.asset_name }}-v3
 
       - name: Install build dependencies
         if: steps.cache-whisper.outputs.cache-hit != 'true'
@@ -82,8 +75,7 @@ jobs:
 
       - name: Install Vulkan SDK
         if: steps.cache-whisper.outputs.cache-hit != 'true' && matrix.pre_install == 'vulkan'
-        run: |
-          sudo apt-get install -y glslc libvulkan-dev
+        run: sudo apt-get install -y libvulkan-dev glslc
 
       - name: Clone whisper.cpp
         if: steps.cache-whisper.outputs.cache-hit != 'true'
@@ -113,14 +105,14 @@ jobs:
   build-whisper-rocm:
     needs: [check-version]
     if: needs.check-version.outputs.should_release == 'true'
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     steps:
       - name: Cache whisper ROCm binary
         id: cache-whisper-rocm
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/rocm-output/whisper-cli
-          key: whisper-1.8.4-rocm-6.1.2-v1
+          key: whisper-1.8.4-rocm-6.1.2-v2
 
       - name: Build whisper-cli with ROCm
         if: steps.cache-whisper-rocm.outputs.cache-hit != 'true'
@@ -175,7 +167,7 @@ jobs:
   build:
     needs: [build-whisper, build-whisper-rocm, check-version]
     if: needs.check-version.outputs.should_release == 'true'
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
