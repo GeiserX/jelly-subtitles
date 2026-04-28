@@ -25,6 +25,8 @@ updates:
   - dependency-name: '*'
     update-types:
     - version-update:semver-major
+  - dependency-name: 'Jellyfin.Controller'
+  - dependency-name: 'Jellyfin.Model'
 - package-ecosystem: github-actions
   directory: /
   schedule:

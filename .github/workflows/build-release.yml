@@ -146,9 +146,31 @@ jobs:
           name: whisper-cli-linux-x64-rocm
           path: ${{ github.workspace }}/rocm-output/whisper-cli
 
+  # ── Check if release already exists ─────────────────────────────────
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version and check tag
+        id: check
+        run: |
+          VERSION=$(grep -oP '(?<=<Version>)[^<]+' WhisperSubs.csproj)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if git ls-remote --tags origin "refs/tags/v${VERSION}" | grep -q .; then
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "::notice::Tag v${VERSION} already exists — skipping release"
+          else
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          fi
+
   # ── Build plugin + create release ──────────────────────────────────
   build:
-    needs: [build-whisper, build-whisper-rocm]
+    needs: [build-whisper, build-whisper-rocm, check-version]
+    if: needs.check-version.outputs.should_release == 'true'
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
