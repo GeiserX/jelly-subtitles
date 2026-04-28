@@ -815,8 +815,8 @@
                         config.WhisperBinaryPath = page.querySelector('#txtWhisperBinaryPath').value;
                         config.WhisperModelPath = page.querySelector('#txtWhisperModelPath').value;
                         config.WhisperThreadCount = parseInt(page.querySelector('#txtWhisperThreadCount').value, 10) || 0;
-                        config.RemoteWhisperApiUrl = page.querySelector('#txtRemoteWhisperApiUrl').value;
-                        config.RemoteWhisperModel = page.querySelector('#txtRemoteWhisperModel').value;
+                        config.RemoteWhisperApiUrl = (page.querySelector('#txtRemoteWhisperApiUrl').value || '').trim();
+                        config.RemoteWhisperModel = (page.querySelector('#txtRemoteWhisperModel').value || '').trim() || 'Systran/faster-whisper-large-v3';
                         config.DefaultLanguage = page.querySelector('#selectDefaultLanguage').value || 'auto';
                         config.SubtitleMode = parseInt(page.querySelector('#selectSubtitleMode').value, 10) || 0;
                         config.EnableAutoGeneration = page.querySelector('#chkEnableAutoGeneration').checked;

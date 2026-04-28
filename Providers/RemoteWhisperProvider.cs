@@ -57,7 +57,8 @@ namespace WhisperSubs.Providers
             content.Add(new StringContent(_model), "model");
             content.Add(new StringContent("srt"), "response_format");
 
-            if (!translate && !string.IsNullOrEmpty(language) && language != "auto")
+            if (!string.IsNullOrWhiteSpace(language) &&
+                !string.Equals(language, "auto", StringComparison.OrdinalIgnoreCase))
             {
                 content.Add(new StringContent(language), "language");
             }
@@ -115,17 +116,14 @@ namespace WhisperSubs.Providers
             var root = doc.RootElement;
 
             var language = root.TryGetProperty("language", out var langProp)
-                ? langProp.GetString() ?? "en"
-                : "en";
+                ? (langProp.GetString() ?? "auto")
+                : "auto";
 
-            // Normalize full language names to ISO 639-1
             language = NormalizeLangName(language);
 
             _logger.LogInformation("Remote language detection: {Language}", language);
 
-            // The OpenAI API doesn't return a confidence score for language detection,
-            // so we use a high default since the model is generally accurate
-            return (language, 0.9f);
+            return (language, 0.0f);
         }
 
         private static string NormalizeLangName(string lang)

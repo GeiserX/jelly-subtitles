@@ -61,7 +61,7 @@ namespace WhisperSubs.ScheduledTasks
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(config.RemoteWhisperApiUrl) && string.IsNullOrEmpty(config.WhisperModelPath))
+            if (string.IsNullOrWhiteSpace(config.RemoteWhisperApiUrl) && string.IsNullOrWhiteSpace(config.WhisperModelPath))
             {
                 _logger.LogWarning("Neither remote API URL nor local model path is configured, aborting task");
                 return;

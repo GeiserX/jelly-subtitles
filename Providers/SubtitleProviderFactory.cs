@@ -9,10 +9,13 @@ namespace WhisperSubs.Providers
         {
             if (!string.IsNullOrWhiteSpace(config.RemoteWhisperApiUrl))
             {
+                var model = string.IsNullOrWhiteSpace(config.RemoteWhisperModel)
+                    ? "Systran/faster-whisper-large-v3"
+                    : config.RemoteWhisperModel.Trim();
                 return new RemoteWhisperProvider(
                     loggerFactory.CreateLogger<RemoteWhisperProvider>(),
                     config.RemoteWhisperApiUrl,
-                    config.RemoteWhisperModel);
+                    model);
             }
 
             return new WhisperProvider(
