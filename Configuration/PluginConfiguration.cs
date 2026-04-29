@@ -56,6 +56,15 @@ namespace WhisperSubs.Configuration
         /// </summary>
         public string RemoteWhisperModel { get; set; } = "Systran/faster-whisper-large-v3";
 
+        /// <summary>
+        /// Optional API key for the remote Whisper API. When set, the value is
+        /// sent as `Authorization: Bearer &lt;key&gt;` on every request. Required by
+        /// OpenAI-compatible servers that gate access (OpenAI, hosted speaches,
+        /// pfrankov/whisper-server when configured with auth, etc.). Leave
+        /// empty for unauthenticated local servers.
+        /// </summary>
+        public string RemoteWhisperApiKey { get; set; } = "";
+
         public List<string> EnabledLibraries { get; set; } = new List<string>();
 
         public PluginConfiguration()

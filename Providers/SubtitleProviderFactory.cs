@@ -12,10 +12,12 @@ namespace WhisperSubs.Providers
                 var model = string.IsNullOrWhiteSpace(config.RemoteWhisperModel)
                     ? "Systran/faster-whisper-large-v3"
                     : config.RemoteWhisperModel.Trim();
+                var apiKey = (config.RemoteWhisperApiKey ?? string.Empty).Trim();
                 return new RemoteWhisperProvider(
                     loggerFactory.CreateLogger<RemoteWhisperProvider>(),
                     config.RemoteWhisperApiUrl,
-                    model);
+                    model,
+                    apiKey);
             }
 
             return new WhisperProvider(
