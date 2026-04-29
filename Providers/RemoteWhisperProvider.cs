@@ -23,14 +23,24 @@ namespace WhisperSubs.Providers
         private readonly ILogger _logger;
         private readonly string _apiUrl;
         private readonly string _model;
+        private readonly string _apiKey;
 
         public string Name => "RemoteWhisper";
 
-        public RemoteWhisperProvider(ILogger logger, string apiUrl, string model)
+        public RemoteWhisperProvider(ILogger logger, string apiUrl, string model, string apiKey = "")
         {
             _logger = logger;
             _apiUrl = apiUrl.TrimEnd('/');
             _model = model;
+            _apiKey = apiKey ?? string.Empty;
+        }
+
+        private void ApplyAuthorization(HttpRequestMessage request)
+        {
+            if (!string.IsNullOrWhiteSpace(_apiKey))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+            }
         }
 
         public async Task<string> TranscribeAsync(string audioPath, string language, CancellationToken cancellationToken, bool translate = false)
@@ -63,7 +73,10 @@ namespace WhisperSubs.Providers
                 content.Add(new StringContent(language), "language");
             }
 
-            using var response = await _httpClient.PostAsync(endpoint, content, cancellationToken).ConfigureAwait(false);
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = content };
+            ApplyAuthorization(request);
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -102,7 +115,10 @@ namespace WhisperSubs.Providers
             content.Add(new StringContent("verbose_json"), "response_format");
 
             var endpoint = $"{_apiUrl}/v1/audio/transcriptions";
-            using var response = await _httpClient.PostAsync(endpoint, content, cancellationToken).ConfigureAwait(false);
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = content };
+            ApplyAuthorization(request);
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
             {

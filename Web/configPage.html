@@ -196,6 +196,12 @@
                             <input type="text" id="txtRemoteWhisperModel" name="RemoteWhisperModel" class="emby-input" placeholder="Systran/faster-whisper-large-v3" />
                             <div class="fieldDescription">Model identifier to request from the remote API. For speaches: a Hugging Face model ID. For OpenAI: "whisper-1".</div>
                         </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtRemoteWhisperApiKey">Remote API Key (Optional)</label>
+                            <input type="password" id="txtRemoteWhisperApiKey" name="RemoteWhisperApiKey" class="emby-input" autocomplete="off" />
+                            <div class="fieldDescription">Bearer token for OpenAI-compatible servers that require authentication (OpenAI, hosted speaches, pfrankov/whisper-server with auth, etc.). Sent as <code>Authorization: Bearer &lt;key&gt;</code>. Leave empty for unauthenticated local servers.</div>
+                        </div>
                     </details>
 
                     <details style="margin-top:1.5em;">
@@ -798,6 +804,7 @@
                             page.querySelector('#txtWhisperThreadCount').value = (config.WhisperThreadCount || 0).toString();
                             page.querySelector('#txtRemoteWhisperApiUrl').value = config.RemoteWhisperApiUrl || '';
                             page.querySelector('#txtRemoteWhisperModel').value = config.RemoteWhisperModel || 'Systran/faster-whisper-large-v3';
+                            page.querySelector('#txtRemoteWhisperApiKey').value = config.RemoteWhisperApiKey || '';
                             page.querySelector('#selectDefaultLanguage').value = config.DefaultLanguage || 'auto';
                             page.querySelector('#selectSubtitleMode').value = (config.SubtitleMode != null ? config.SubtitleMode : 0).toString();
                             page.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration || false;
@@ -817,6 +824,7 @@
                         config.WhisperThreadCount = parseInt(page.querySelector('#txtWhisperThreadCount').value, 10) || 0;
                         config.RemoteWhisperApiUrl = (page.querySelector('#txtRemoteWhisperApiUrl').value || '').trim();
                         config.RemoteWhisperModel = (page.querySelector('#txtRemoteWhisperModel').value || '').trim() || 'Systran/faster-whisper-large-v3';
+                        config.RemoteWhisperApiKey = (page.querySelector('#txtRemoteWhisperApiKey').value || '').trim();
                         config.DefaultLanguage = page.querySelector('#selectDefaultLanguage').value || 'auto';
                         config.SubtitleMode = parseInt(page.querySelector('#selectSubtitleMode').value, 10) || 0;
                         config.EnableAutoGeneration = page.querySelector('#chkEnableAutoGeneration').checked;
