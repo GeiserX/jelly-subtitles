@@ -32,7 +32,16 @@ namespace WhisperSubs.Providers
             _logger = logger;
             _apiUrl = apiUrl.TrimEnd('/');
             _model = model;
-            _apiKey = apiKey ?? string.Empty;
+            _apiKey = (apiKey ?? string.Empty).Trim();
+
+            if (!string.IsNullOrEmpty(_apiKey) &&
+                Uri.TryCreate(_apiUrl, UriKind.Absolute, out var uri) &&
+                !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning(
+                    "RemoteWhisper API key is configured with a non-HTTPS URL ({Scheme}). The key will be sent in cleartext. Consider switching to https://.",
+                    uri.Scheme);
+            }
         }
 
         private void ApplyAuthorization(HttpRequestMessage request)

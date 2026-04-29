@@ -188,19 +188,19 @@
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="txtRemoteWhisperApiUrl">Remote API URL</label>
                             <input type="text" id="txtRemoteWhisperApiUrl" name="RemoteWhisperApiUrl" class="emby-input" placeholder="http://192.168.1.100:8000" />
-                            <div class="fieldDescription">URL of an OpenAI-compatible Whisper API (e.g. faster-whisper-server, speaches). When set, audio is sent to this server instead of running whisper locally. Leave empty to use local whisper-cli.</div>
+                            <div class="fieldDescription">URL of an OpenAI-compatible Whisper API (e.g. faster-whisper-server, Speaches). When set, audio is sent to this server instead of running whisper locally. Leave empty to use local whisper-cli.</div>
                         </div>
 
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="txtRemoteWhisperModel">Remote Model Name</label>
                             <input type="text" id="txtRemoteWhisperModel" name="RemoteWhisperModel" class="emby-input" placeholder="Systran/faster-whisper-large-v3" />
-                            <div class="fieldDescription">Model identifier to request from the remote API. For speaches: a Hugging Face model ID. For OpenAI: "whisper-1".</div>
+                            <div class="fieldDescription">Model identifier to request from the remote API. For Speaches: a Hugging Face model ID. For OpenAI: "whisper-1".</div>
                         </div>
 
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="txtRemoteWhisperApiKey">Remote API Key (Optional)</label>
-                            <input type="password" id="txtRemoteWhisperApiKey" name="RemoteWhisperApiKey" class="emby-input" autocomplete="off" />
-                            <div class="fieldDescription">Bearer token for OpenAI-compatible servers that require authentication (OpenAI, hosted speaches, pfrankov/whisper-server with auth, etc.). Sent as <code>Authorization: Bearer &lt;key&gt;</code>. Leave empty for unauthenticated local servers.</div>
+                            <input type="password" id="txtRemoteWhisperApiKey" name="RemoteWhisperApiKey" class="emby-input" autocomplete="new-password" maxlength="256" spellcheck="false" />
+                            <div class="fieldDescription">Bearer token for OpenAI-compatible servers that require authentication (OpenAI, hosted Speaches, pfrankov/whisper-server with auth, etc.). Sent as <code>Authorization: Bearer &lt;key&gt;</code>. Leave empty for unauthenticated local servers.</div>
                         </div>
                     </details>
 

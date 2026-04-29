@@ -43,7 +43,7 @@ namespace WhisperSubs.Configuration
         public int WhisperThreadCount { get; set; } = 0;
 
         /// <summary>
-        /// Optional URL of an OpenAI-compatible Whisper API server (e.g. faster-whisper-server/speaches).
+        /// Optional URL of an OpenAI-compatible Whisper API server (e.g. faster-whisper-server/Speaches).
         /// When set, audio is sent to this endpoint instead of running whisper-cli locally.
         /// Example: http://192.168.1.100:8000
         /// </summary>
@@ -51,7 +51,7 @@ namespace WhisperSubs.Configuration
 
         /// <summary>
         /// Model name to request from the remote API.
-        /// For speaches/faster-whisper-server: a Hugging Face model ID (e.g. "Systran/faster-whisper-large-v3").
+        /// For Speaches/faster-whisper-server: a Hugging Face model ID (e.g. "Systran/faster-whisper-large-v3").
         /// For OpenAI: "whisper-1".
         /// </summary>
         public string RemoteWhisperModel { get; set; } = "Systran/faster-whisper-large-v3";
@@ -59,7 +59,7 @@ namespace WhisperSubs.Configuration
         /// <summary>
         /// Optional API key for the remote Whisper API. When set, the value is
         /// sent as `Authorization: Bearer &lt;key&gt;` on every request. Required by
-        /// OpenAI-compatible servers that gate access (OpenAI, hosted speaches,
+        /// OpenAI-compatible servers that gate access (OpenAI, hosted Speaches,
         /// pfrankov/whisper-server when configured with auth, etc.). Leave
         /// empty for unauthenticated local servers.
         /// </summary>
