@@ -31,12 +31,12 @@ jobs:
           - os: ubuntu-24.04
             variant: cpu
             asset_name: whisper-cli-linux-x64
-            cmake_flags: "-DGGML_NATIVE=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF -DGGML_SSE42=ON"
+            cmake_flags: "-DGGML_NATIVE=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF -DGGML_BMI2=OFF -DGGML_SSE42=ON"
             pre_install: ""
           - os: ubuntu-24.04
             variant: cpu-avx2
             asset_name: whisper-cli-linux-x64-avx2
-            cmake_flags: "-DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"
+            cmake_flags: "-DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_BMI2=ON"
             pre_install: ""
           - os: ubuntu-24.04-arm
             variant: cpu
