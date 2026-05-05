@@ -16,5 +16,11 @@ namespace WhisperSubs.Configuration
         /// Generate both a complete and a forced subtitle file per track.
         /// </summary>
         FullAndForced = 2,
+
+        /// <summary>
+        /// Only generate English translated subtitles (skip native-language transcription).
+        /// Uses whisper's --translate flag in a single pass. Requires medium or large models.
+        /// </summary>
+        TranslationOnly = 3,
     }
 }

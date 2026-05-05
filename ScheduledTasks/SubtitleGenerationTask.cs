@@ -99,9 +99,10 @@ namespace WhisperSubs.ScheduledTasks
             // subtitles must still be considered. Only filter by HasSubtitles in Full mode.
             var needsForced = config.SubtitleMode == Configuration.SubtitleMode.ForcedOnly
                 || config.SubtitleMode == Configuration.SubtitleMode.FullAndForced;
-            var needsTranslation = config.EnableTranslation
-                && (config.SubtitleMode == Configuration.SubtitleMode.Full
-                    || config.SubtitleMode == Configuration.SubtitleMode.FullAndForced);
+            var needsTranslation = config.SubtitleMode == Configuration.SubtitleMode.TranslationOnly
+                || (config.EnableTranslation
+                    && (config.SubtitleMode == Configuration.SubtitleMode.Full
+                        || config.SubtitleMode == Configuration.SubtitleMode.FullAndForced));
 
             var includeKinds = new List<BaseItemKind> { BaseItemKind.Movie, BaseItemKind.Episode, BaseItemKind.Video };
             if (config.EnableLyricsGeneration)
@@ -242,6 +243,7 @@ namespace WhisperSubs.ScheduledTasks
                             Configuration.SubtitleMode.Full => hasFullSrt && (!needsTranslation || hasTranslatedSrt),
                             Configuration.SubtitleMode.ForcedOnly => hasForcedSrt,
                             Configuration.SubtitleMode.FullAndForced => hasFullSrt && hasForcedSrt && (!needsTranslation || hasTranslatedSrt),
+                            Configuration.SubtitleMode.TranslationOnly => hasTranslatedSrt,
                             _ => hasFullSrt
                         };
 

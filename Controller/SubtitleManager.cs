@@ -46,23 +46,27 @@ namespace WhisperSubs.Controller
             var languages = await ResolveLanguagesAsync(mediaPath, language, cancellationToken);
             var subtitleMode = Plugin.Instance?.Configuration?.SubtitleMode ?? SubtitleMode.Full;
 
-            foreach (var lang in languages)
+            if (subtitleMode != SubtitleMode.TranslationOnly)
             {
-                if (subtitleMode == SubtitleMode.Full || subtitleMode == SubtitleMode.FullAndForced)
+                foreach (var lang in languages)
                 {
-                    await GenerateFullSubtitleForLanguageAsync(item, provider, lang, mediaPath, cancellationToken);
-                }
+                    if (subtitleMode == SubtitleMode.Full || subtitleMode == SubtitleMode.FullAndForced)
+                    {
+                        await GenerateFullSubtitleForLanguageAsync(item, provider, lang, mediaPath, cancellationToken);
+                    }
 
-                if (subtitleMode == SubtitleMode.ForcedOnly || subtitleMode == SubtitleMode.FullAndForced)
-                {
-                    await GenerateForcedSubtitleAsync(item, provider, lang, mediaPath, cancellationToken);
+                    if (subtitleMode == SubtitleMode.ForcedOnly || subtitleMode == SubtitleMode.FullAndForced)
+                    {
+                        await GenerateForcedSubtitleAsync(item, provider, lang, mediaPath, cancellationToken);
+                    }
                 }
             }
 
-            // Translation: generate English subs if enabled and no English audio present
+            // Translation: generate English subs when TranslationOnly mode or EnableTranslation with Full modes
             var config = Plugin.Instance?.Configuration;
-            if (config?.EnableTranslation == true
-                && (subtitleMode == SubtitleMode.Full || subtitleMode == SubtitleMode.FullAndForced))
+            if (subtitleMode == SubtitleMode.TranslationOnly
+                || (config?.EnableTranslation == true
+                    && (subtitleMode == SubtitleMode.Full || subtitleMode == SubtitleMode.FullAndForced)))
             {
                 await GenerateTranslatedSubtitleAsync(item, provider, mediaPath, languages, cancellationToken);
             }

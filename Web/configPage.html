@@ -120,12 +120,16 @@
                             <option value="0">Full</option>
                             <option value="1">Forced Only</option>
                             <option value="2">Full + Forced</option>
+                            <option value="3">Translation Only (English)</option>
                         </select>
                         <div class="fieldDescription">
                             <strong>Full</strong> transcribes all speech (default).
                             <strong>Forced Only</strong> generates subtitles only for segments where the spoken language
                             differs from the audio track's primary language (e.g., French dialogue in an English movie).
                             <strong>Full + Forced</strong> generates both files per track.
+                            <strong>Translation Only</strong> skips native-language transcription entirely and only produces
+                            English translated subtitles in a single whisper pass &mdash; ideal when you only need English subs.
+                            Requires a medium or large whisper model (turbo does not support translation).
                             Forced subtitles are saved as <code>.forced.generated.srt</code> and auto-recognized by Jellyfin.
                         </div>
                     </div>
@@ -167,7 +171,7 @@
                         </div>
                     </div>
 
-                    <div class="checkboxContainer checkboxContainer-withDescription">
+                    <div id="translationCheckboxContainer" class="checkboxContainer checkboxContainer-withDescription">
                         <label>
                             <input is="emby-checkbox" type="checkbox" id="chkEnableTranslation" name="EnableTranslation" />
                             <span>Enable Translation (English)</span>
@@ -178,6 +182,7 @@
                             <br />
                             <strong>Note:</strong> Only applies when Subtitle Mode includes Full subtitles (not Forced Only).
                             Skipped automatically when English audio or English subtitles are already present.
+                            This option is implicit when using "Translation Only" mode.
                         </div>
                     </div>
 
@@ -1164,9 +1169,26 @@
                 }
             };
 
+            function updateTranslationVisibility() {
+                var mode = parseInt(document.querySelector('#selectSubtitleMode').value, 10);
+                var container = document.querySelector('#translationCheckboxContainer');
+                var checkbox = document.querySelector('#chkEnableTranslation');
+                if (mode === 3) {
+                    checkbox.checked = true;
+                    checkbox.disabled = true;
+                    container.style.opacity = '0.5';
+                } else {
+                    checkbox.disabled = false;
+                    container.style.opacity = '1';
+                }
+            }
+
+            document.querySelector('#selectSubtitleMode').addEventListener('change', updateTranslationVisibility);
+
             document.querySelector('[data-role="page"]').addEventListener('pageshow', function () {
                 WhisperSubsConfig.loadConfiguration(this);
                 WhisperSubsConfig.loadEngine();
+                setTimeout(updateTranslationVisibility, 100);
                 // Check if transcription is already running and show banner
                 WhisperSubsConfig.pollQueueStatus();
                 WhisperSubsConfig.ajaxGet(ApiClient.getUrl('Plugins/WhisperSubs/Queue'))
