@@ -815,6 +815,7 @@
                             page.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration || false;
                             page.querySelector('#chkEnableLyricsGeneration').checked = config.EnableLyricsGeneration || false;
                             page.querySelector('#chkEnableTranslation').checked = config.EnableTranslation || false;
+                            updateTranslationVisibility();
                         }
                             WhisperSubsConfig.loadLibraries();
                         WhisperSubsConfig.loadLibrarySelector(config ? config.EnabledLibraries || [] : []);
@@ -834,7 +835,8 @@
                         config.SubtitleMode = parseInt(page.querySelector('#selectSubtitleMode').value, 10) || 0;
                         config.EnableAutoGeneration = page.querySelector('#chkEnableAutoGeneration').checked;
                         config.EnableLyricsGeneration = page.querySelector('#chkEnableLyricsGeneration').checked;
-                        config.EnableTranslation = page.querySelector('#chkEnableTranslation').checked;
+                        var subtitleMode = parseInt(page.querySelector('#selectSubtitleMode').value, 10) || 0;
+                        config.EnableTranslation = subtitleMode !== 3 && page.querySelector('#chkEnableTranslation').checked;
 
                         // Collect enabled libraries from checkboxes
                         var libraryCheckboxes = page.querySelectorAll('.chkLibrary');
@@ -1196,7 +1198,6 @@
             document.querySelector('[data-role="page"]').addEventListener('pageshow', function () {
                 WhisperSubsConfig.loadConfiguration(this);
                 WhisperSubsConfig.loadEngine();
-                setTimeout(updateTranslationVisibility, 100);
                 // Check if transcription is already running and show banner
                 WhisperSubsConfig.pollQueueStatus();
                 WhisperSubsConfig.ajaxGet(ApiClient.getUrl('Plugins/WhisperSubs/Queue'))
