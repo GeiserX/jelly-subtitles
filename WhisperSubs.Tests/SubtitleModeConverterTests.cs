@@ -20,6 +20,7 @@ public class SubtitleModeConverterTests
     [InlineData("0", SubtitleMode.Full)]
     [InlineData("1", SubtitleMode.ForcedOnly)]
     [InlineData("2", SubtitleMode.FullAndForced)]
+    [InlineData("3", SubtitleMode.TranslationOnly)]
     public void Read_ValidIntegers(string value, SubtitleMode expected)
     {
         var json = value;
@@ -49,8 +50,10 @@ public class SubtitleModeConverterTests
     [InlineData("\"Full\"", SubtitleMode.Full)]
     [InlineData("\"ForcedOnly\"", SubtitleMode.ForcedOnly)]
     [InlineData("\"FullAndForced\"", SubtitleMode.FullAndForced)]
+    [InlineData("\"TranslationOnly\"", SubtitleMode.TranslationOnly)]
     [InlineData("\"full\"", SubtitleMode.Full)]
     [InlineData("\"forcedonly\"", SubtitleMode.ForcedOnly)]
+    [InlineData("\"translationonly\"", SubtitleMode.TranslationOnly)]
     public void Read_ValidStrings(string json, SubtitleMode expected)
     {
         var result = JsonSerializer.Deserialize<SubtitleMode>(json, Options);
@@ -80,6 +83,7 @@ public class SubtitleModeConverterTests
     [InlineData(SubtitleMode.Full, "0")]
     [InlineData(SubtitleMode.ForcedOnly, "1")]
     [InlineData(SubtitleMode.FullAndForced, "2")]
+    [InlineData(SubtitleMode.TranslationOnly, "3")]
     public void Write_ProducesInteger(SubtitleMode mode, string expected)
     {
         var json = JsonSerializer.Serialize(mode, Options);
@@ -92,6 +96,7 @@ public class SubtitleModeConverterTests
     [InlineData(SubtitleMode.Full)]
     [InlineData(SubtitleMode.ForcedOnly)]
     [InlineData(SubtitleMode.FullAndForced)]
+    [InlineData(SubtitleMode.TranslationOnly)]
     public void Roundtrip_AllValues(SubtitleMode original)
     {
         var json = JsonSerializer.Serialize(original, Options);

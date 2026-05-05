@@ -28,13 +28,14 @@ public class ConfigurationTests
         Assert.Equal(0, (int)SubtitleMode.Full);
         Assert.Equal(1, (int)SubtitleMode.ForcedOnly);
         Assert.Equal(2, (int)SubtitleMode.FullAndForced);
+        Assert.Equal(3, (int)SubtitleMode.TranslationOnly);
     }
 
     [Fact]
     public void SubtitleMode_AllValuesAreDefined()
     {
         var values = Enum.GetValues<SubtitleMode>();
-        Assert.Equal(3, values.Length);
+        Assert.Equal(4, values.Length);
     }
 
     [Theory]
@@ -42,9 +43,11 @@ public class ConfigurationTests
     [InlineData("{\"SubtitleMode\": 0}", SubtitleMode.Full)]
     [InlineData("{\"SubtitleMode\": 1}", SubtitleMode.ForcedOnly)]
     [InlineData("{\"SubtitleMode\": 2}", SubtitleMode.FullAndForced)]
+    [InlineData("{\"SubtitleMode\": 3}", SubtitleMode.TranslationOnly)]
     [InlineData("{\"SubtitleMode\": 99}", SubtitleMode.Full)]
     [InlineData("{\"SubtitleMode\": -1}", SubtitleMode.Full)]
     [InlineData("{\"SubtitleMode\": \"ForcedOnly\"}", SubtitleMode.ForcedOnly)]
+    [InlineData("{\"SubtitleMode\": \"TranslationOnly\"}", SubtitleMode.TranslationOnly)]
     public void SubtitleModeConverter_HandlesEdgeCases(string json, SubtitleMode expected)
     {
         var config = JsonSerializer.Deserialize<PluginConfiguration>(json);

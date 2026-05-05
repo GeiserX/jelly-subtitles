@@ -1169,15 +1169,23 @@
                 }
             };
 
+            var _savedTranslationState = null;
             function updateTranslationVisibility() {
                 var mode = parseInt(document.querySelector('#selectSubtitleMode').value, 10);
                 var container = document.querySelector('#translationCheckboxContainer');
                 var checkbox = document.querySelector('#chkEnableTranslation');
                 if (mode === 3) {
+                    if (_savedTranslationState === null) {
+                        _savedTranslationState = checkbox.checked;
+                    }
                     checkbox.checked = true;
                     checkbox.disabled = true;
                     container.style.opacity = '0.5';
                 } else {
+                    if (_savedTranslationState !== null) {
+                        checkbox.checked = _savedTranslationState;
+                        _savedTranslationState = null;
+                    }
                     checkbox.disabled = false;
                     container.style.opacity = '1';
                 }
