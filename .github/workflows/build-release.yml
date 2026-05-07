@@ -36,7 +36,7 @@ jobs:
           - os: ubuntu-24.04
             variant: cpu-noavx
             asset_name: whisper-cli-linux-x64-noavx
-            cmake_flags: "-DGGML_NATIVE=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF -DGGML_BMI2=OFF -DGGML_SSE42=ON"
+            cmake_flags: "-DGGML_NATIVE=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF -DGGML_BMI2=OFF -DGGML_SSE42=ON -DGGML_OPENMP=OFF"
             pre_install: ""
           - os: ubuntu-24.04-arm
             variant: cpu
@@ -60,7 +60,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/whisper-${{ matrix.variant }}/build/bin/whisper-cli
-          key: whisper-1.8.4-${{ matrix.asset_name }}-v4
+          key: whisper-1.8.4-${{ matrix.asset_name }}-v5
 
       - name: Install build dependencies
         if: steps.cache-whisper.outputs.cache-hit != 'true'
