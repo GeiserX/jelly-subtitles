@@ -8,8 +8,9 @@ public class BinaryCatalogTests
     [Fact]
     public void Variants_ContainsExpectedEntries()
     {
-        Assert.Equal(4, BinaryCatalog.Variants.Length);
+        Assert.Equal(5, BinaryCatalog.Variants.Length);
         Assert.Contains(BinaryCatalog.Variants, v => v.Id == "cpu");
+        Assert.Contains(BinaryCatalog.Variants, v => v.Id == "noavx");
         Assert.Contains(BinaryCatalog.Variants, v => v.Id == "cuda12");
         Assert.Contains(BinaryCatalog.Variants, v => v.Id == "vulkan");
         Assert.Contains(BinaryCatalog.Variants, v => v.Id == "rocm");
@@ -23,6 +24,14 @@ public class BinaryCatalogTests
     }
 
     [Fact]
+    public void Variants_NoavxIsNotDefault()
+    {
+        var noavx = Assert.Single(BinaryCatalog.Variants, v => v.Id == "noavx");
+        Assert.Equal("CPU (Compatibility)", noavx.DisplayName);
+        Assert.False(noavx.IsDefault);
+    }
+
+    [Fact]
     public void Variants_NonCpuAreNotDefault()
     {
         foreach (var v in BinaryCatalog.Variants.Where(v => v.Id != "cpu"))
@@ -33,10 +42,12 @@ public class BinaryCatalogTests
 
     [Theory]
     [InlineData("linux-x64", "cpu", "whisper-cli-linux-x64")]
+    [InlineData("linux-x64", "noavx", "whisper-cli-linux-x64-noavx")]
     [InlineData("linux-x64", "cuda12", "whisper-cli-linux-x64-cuda12")]
     [InlineData("linux-x64", "vulkan", "whisper-cli-linux-x64-vulkan")]
     [InlineData("linux-x64", "rocm", "whisper-cli-linux-x64-rocm")]
     [InlineData("linux-arm64", "cpu", "whisper-cli-linux-arm64")]
+    [InlineData("linux-arm64", "noavx", "whisper-cli-linux-arm64-noavx")]
     [InlineData("win-x64", "cpu", "whisper-cli-win-x64")]
     [InlineData("osx-arm64", "cpu", "whisper-cli-osx-arm64")]
     public void GetAssetName_ReturnsCorrectName(string platform, string variant, string expected)
@@ -48,15 +59,16 @@ public class BinaryCatalogTests
     public void GetAvailableVariants_LinuxX64_ReturnsAll()
     {
         var variants = BinaryCatalog.GetAvailableVariants("linux-x64");
-        Assert.Equal(4, variants.Length);
+        Assert.Equal(5, variants.Length);
     }
 
     [Fact]
-    public void GetAvailableVariants_LinuxArm64_ReturnsCpuOnly()
+    public void GetAvailableVariants_LinuxArm64_ReturnsCpuAndNoavx()
     {
         var variants = BinaryCatalog.GetAvailableVariants("linux-arm64");
-        Assert.Single(variants);
-        Assert.Equal("cpu", variants[0].Id);
+        Assert.Equal(2, variants.Length);
+        Assert.Contains(variants, v => v.Id == "cpu");
+        Assert.Contains(variants, v => v.Id == "noavx");
     }
 
     [Theory]
