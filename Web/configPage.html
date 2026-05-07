@@ -701,6 +701,9 @@
                             hint.textContent = 'No GPU render device detected. This variant requires a GPU with Vulkan support.';
                             hint.style.color = '#CC7B19';
                         }
+                    } else if (variant === 'noavx') {
+                        hint.textContent = 'Compatibility variant \u2014 no AVX or OpenMP required. Recommended for containers (TrueNAS Scale, minimal Docker).';
+                        hint.style.color = '';
                     } else {
                         // CPU
                         if (gpuInfo.HasNvidia || gpuInfo.HasAmdGpu || gpuInfo.HasRenderDevice) {

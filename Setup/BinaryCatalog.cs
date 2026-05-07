@@ -9,6 +9,8 @@ namespace WhisperSubs.Setup
         {
             new BinaryVariant("cpu", "CPU Only",
                 "Works on any system. No GPU required.", true),
+            new BinaryVariant("noavx", "CPU (Compatibility)",
+                "Maximum compatibility — no AVX, no OpenMP. Recommended for containers (TrueNAS Scale, minimal Docker images).", false),
             new BinaryVariant("cuda12", "NVIDIA CUDA 12",
                 "Hardware-accelerated via NVIDIA GPU (CUDA 12). Requires NVIDIA drivers.", false),
             new BinaryVariant("vulkan", "Vulkan (Intel / AMD / NVIDIA)",
@@ -37,7 +39,7 @@ namespace WhisperSubs.Setup
             return platform switch
             {
                 "linux-x64" => Variants,
-                "linux-arm64" => Variants.Where(v => v.Id == "cpu").ToArray(),
+                "linux-arm64" => Variants.Where(v => v.Id == "cpu" || v.Id == "noavx").ToArray(),
                 _ => Array.Empty<BinaryVariant>()
             };
         }
