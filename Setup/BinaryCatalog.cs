@@ -13,8 +13,12 @@ namespace WhisperSubs.Setup
                 "Maximum compatibility — no AVX, no OpenMP. Recommended for containers (TrueNAS Scale, minimal Docker images).", false),
             new BinaryVariant("cuda12", "NVIDIA CUDA 12",
                 "Hardware-accelerated via NVIDIA GPU (CUDA 12). Requires NVIDIA drivers.", false),
+            new BinaryVariant("cuda12-noavx", "NVIDIA CUDA 12 (Compatibility)",
+                "CUDA 12 GPU acceleration with no AVX/OpenMP. For older CPUs + NVIDIA GPU (e.g. TrueNAS Scale).", false),
             new BinaryVariant("vulkan", "Vulkan (Intel / AMD / NVIDIA)",
                 "Cross-vendor GPU acceleration via Vulkan. Works with Intel iGPU, AMD, and NVIDIA.", false),
+            new BinaryVariant("vulkan-noavx", "Vulkan (Compatibility)",
+                "Vulkan GPU acceleration with no AVX/OpenMP. For older CPUs + GPU (e.g. TrueNAS Scale).", false),
             new BinaryVariant("rocm", "AMD ROCm",
                 "Hardware-accelerated via AMD GPU (ROCm / HIP). Requires AMD ROCm drivers.", false),
         };
