@@ -8,6 +8,7 @@ using WhisperSubs.Providers;
 using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -16,15 +17,18 @@ namespace WhisperSubs.ScheduledTasks
     public class SubtitleGenerationTask : IScheduledTask
     {
         private readonly ILibraryManager _libraryManager;
+        private readonly ISessionManager _sessionManager;
         private readonly ILoggerFactory _loggerFactory;
         private readonly ILogger<SubtitleGenerationTask> _logger;
 
         public SubtitleGenerationTask(
             ILibraryManager libraryManager,
+            ISessionManager sessionManager,
             ILogger<SubtitleGenerationTask> logger,
             ILoggerFactory loggerFactory)
         {
             _libraryManager = libraryManager;
+            _sessionManager = sessionManager;
             _logger = logger;
             _loggerFactory = loggerFactory;
         }
@@ -156,6 +160,12 @@ namespace WhisperSubs.ScheduledTasks
             for (int i = 0; i < allItems.Count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+
+                // Wait for active playback to finish before processing next item
+                if (config.PauseOnPlayback)
+                {
+                    await WaitForPlaybackIdleAsync(cancellationToken);
+                }
 
                 // Drain any priority (manual) requests first
                 if (queue.PriorityCount > 0)
@@ -293,6 +303,33 @@ namespace WhisperSubs.ScheduledTasks
             queue.ReportTaskComplete();
             _logger.LogInformation("Subtitle generation task complete. Processed: {Processed}, Failed: {Failed}",
                 completed, failed);
+        }
+
+        internal async Task WaitForPlaybackIdleAsync(CancellationToken cancellationToken)
+        {
+            bool logged = false;
+            var deadline = DateTime.UtcNow.AddHours(4);
+            var queue = SubtitleQueueService.Instance;
+            while (_sessionManager.Sessions.Any(s => s.NowPlayingItem != null))
+            {
+                if (DateTime.UtcNow >= deadline)
+                {
+                    _logger.LogWarning("Playback still active after 4 hours — resuming subtitle generation to avoid indefinite stall");
+                    break;
+                }
+                if (!logged)
+                {
+                    _logger.LogInformation("Active playback detected — pausing subtitle generation until idle");
+                    queue.ReportPhase("Waiting for playback to stop");
+                    logged = true;
+                }
+                await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken);
+            }
+            if (logged)
+            {
+                queue.ReportPhase(null!);
+                _logger.LogInformation("Playback stopped — resuming subtitle generation");
+            }
         }
     }
 }
