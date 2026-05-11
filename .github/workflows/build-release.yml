@@ -80,7 +80,7 @@ jobs:
 
       - name: Install Vulkan SDK
         if: steps.cache-whisper.outputs.cache-hit != 'true' && matrix.pre_install == 'vulkan'
-        run: sudo apt-get install -y libvulkan-dev glslc
+        run: sudo apt-get install -y libvulkan-dev glslang-tools
 
       - name: Clone whisper.cpp
         if: steps.cache-whisper.outputs.cache-hit != 'true'
