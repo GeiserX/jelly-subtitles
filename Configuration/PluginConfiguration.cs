@@ -65,6 +65,12 @@ namespace WhisperSubs.Configuration
         /// </summary>
         public string RemoteWhisperApiKey { get; set; } = "";
 
+        /// <summary>
+        /// When enabled, subtitle generation pauses while any user is actively
+        /// playing media and resumes automatically when playback stops.
+        /// </summary>
+        public bool PauseOnPlayback { get; set; } = false;
+
         public List<string> EnabledLibraries { get; set; } = new List<string>();
 
         public PluginConfiguration()
