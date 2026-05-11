@@ -308,8 +308,14 @@ namespace WhisperSubs.ScheduledTasks
         private async Task WaitForPlaybackIdleAsync(CancellationToken cancellationToken)
         {
             bool logged = false;
+            var deadline = DateTime.UtcNow.AddHours(4);
             while (_sessionManager.Sessions.Any(s => s.NowPlayingItem != null))
             {
+                if (DateTime.UtcNow >= deadline)
+                {
+                    _logger.LogWarning("Playback still active after 4 hours — resuming subtitle generation to avoid indefinite stall");
+                    break;
+                }
                 if (!logged)
                 {
                     _logger.LogInformation("Active playback detected — pausing subtitle generation until idle");

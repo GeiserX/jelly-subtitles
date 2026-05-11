@@ -17,6 +17,7 @@ public class ConfigurationTests
         Assert.Equal("auto", config.DefaultLanguage);
         Assert.Equal(SubtitleMode.Full, config.SubtitleMode);
         Assert.False(config.EnableLyricsGeneration);
+        Assert.False(config.PauseOnPlayback);
         Assert.Equal(0, config.WhisperThreadCount);
         Assert.NotNull(config.EnabledLibraries);
         Assert.Empty(config.EnabledLibraries);
