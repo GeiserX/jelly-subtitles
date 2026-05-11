@@ -8,11 +8,13 @@ public class BinaryCatalogTests
     [Fact]
     public void Variants_ContainsExpectedEntries()
     {
-        Assert.Equal(5, BinaryCatalog.Variants.Length);
+        Assert.Equal(7, BinaryCatalog.Variants.Length);
         Assert.Contains(BinaryCatalog.Variants, v => v.Id == "cpu");
         Assert.Contains(BinaryCatalog.Variants, v => v.Id == "noavx");
         Assert.Contains(BinaryCatalog.Variants, v => v.Id == "cuda12");
+        Assert.Contains(BinaryCatalog.Variants, v => v.Id == "cuda12-noavx");
         Assert.Contains(BinaryCatalog.Variants, v => v.Id == "vulkan");
+        Assert.Contains(BinaryCatalog.Variants, v => v.Id == "vulkan-noavx");
         Assert.Contains(BinaryCatalog.Variants, v => v.Id == "rocm");
     }
 
@@ -44,7 +46,9 @@ public class BinaryCatalogTests
     [InlineData("linux-x64", "cpu", "whisper-cli-linux-x64")]
     [InlineData("linux-x64", "noavx", "whisper-cli-linux-x64-noavx")]
     [InlineData("linux-x64", "cuda12", "whisper-cli-linux-x64-cuda12")]
+    [InlineData("linux-x64", "cuda12-noavx", "whisper-cli-linux-x64-cuda12-noavx")]
     [InlineData("linux-x64", "vulkan", "whisper-cli-linux-x64-vulkan")]
+    [InlineData("linux-x64", "vulkan-noavx", "whisper-cli-linux-x64-vulkan-noavx")]
     [InlineData("linux-x64", "rocm", "whisper-cli-linux-x64-rocm")]
     [InlineData("linux-arm64", "cpu", "whisper-cli-linux-arm64")]
     [InlineData("linux-arm64", "noavx", "whisper-cli-linux-arm64-noavx")]
@@ -59,7 +63,7 @@ public class BinaryCatalogTests
     public void GetAvailableVariants_LinuxX64_ReturnsAll()
     {
         var variants = BinaryCatalog.GetAvailableVariants("linux-x64");
-        Assert.Equal(5, variants.Length);
+        Assert.Equal(7, variants.Length);
     }
 
     [Fact]

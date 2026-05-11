@@ -273,7 +273,9 @@ jobs:
             whisper-cli-linux-x64-noavx
             whisper-cli-linux-arm64
             whisper-cli-linux-x64-cuda12
+            whisper-cli-linux-x64-cuda12-noavx
             whisper-cli-linux-x64-vulkan
+            whisper-cli-linux-x64-vulkan-noavx
             whisper-cli-linux-x64-rocm
           generate_release_notes: true
         env:
