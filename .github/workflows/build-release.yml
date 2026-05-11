@@ -48,7 +48,7 @@ jobs:
             asset_name: whisper-cli-linux-x64-cuda12
             cmake_flags: "-DGGML_CUDA=ON"
             pre_install: "cuda"
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             variant: vulkan
             asset_name: whisper-cli-linux-x64-vulkan
             cmake_flags: "-DGGML_VULKAN=ON"
@@ -80,7 +80,7 @@ jobs:
 
       - name: Install Vulkan SDK
         if: steps.cache-whisper.outputs.cache-hit != 'true' && matrix.pre_install == 'vulkan'
-        run: sudo apt-get install -y libvulkan-dev glslang-tools
+        run: sudo apt-get install -y libvulkan-dev glslc
 
       - name: Clone whisper.cpp
         if: steps.cache-whisper.outputs.cache-hit != 'true'
