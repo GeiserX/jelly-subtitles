@@ -305,10 +305,11 @@ namespace WhisperSubs.ScheduledTasks
                 completed, failed);
         }
 
-        private async Task WaitForPlaybackIdleAsync(CancellationToken cancellationToken)
+        internal async Task WaitForPlaybackIdleAsync(CancellationToken cancellationToken)
         {
             bool logged = false;
             var deadline = DateTime.UtcNow.AddHours(4);
+            var queue = SubtitleQueueService.Instance;
             while (_sessionManager.Sessions.Any(s => s.NowPlayingItem != null))
             {
                 if (DateTime.UtcNow >= deadline)
@@ -319,12 +320,14 @@ namespace WhisperSubs.ScheduledTasks
                 if (!logged)
                 {
                     _logger.LogInformation("Active playback detected — pausing subtitle generation until idle");
+                    queue.ReportPhase("Waiting for playback to stop");
                     logged = true;
                 }
                 await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken);
             }
             if (logged)
             {
+                queue.ReportPhase(null!);
                 _logger.LogInformation("Playback stopped — resuming subtitle generation");
             }
         }
