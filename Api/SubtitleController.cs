@@ -78,7 +78,8 @@ namespace WhisperSubs.Api
         public ActionResult<PagedItemResult> GetLibraryItems(
             [FromRoute] string libraryId,
             [FromQuery] int startIndex = 0,
-            [FromQuery] int limit = 50)
+            [FromQuery] int limit = 50,
+            [FromQuery] string? searchTerm = null)
         {
             try
             {
@@ -91,16 +92,24 @@ namespace WhisperSubs.Api
                 var config = Plugin.Instance.Configuration;
                 var typeStr = config.EnableLyricsGeneration ? "Movie,Episode,Video,Audio" : "Movie,Episode,Video";
                 var includeTypes = GetBaseItemKinds(typeStr);
-                var allItems = _libraryManager.GetItemList(new MediaBrowser.Controller.Entities.InternalItemsQuery
+                var query = new MediaBrowser.Controller.Entities.InternalItemsQuery
                 {
                     ParentId = library.Id,
                     IncludeItemTypes = includeTypes,
                     Recursive = true
-                }).Where(item => !string.IsNullOrEmpty(item.Path)).ToList();
+                };
 
-                var totalCount = allItems.Count;
+                if (!string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    query.SearchTerm = searchTerm.Trim();
+                }
 
-                var items = allItems
+                var filteredList = _libraryManager.GetItemList(query)
+                    .Where(item => !string.IsNullOrEmpty(item.Path))
+                    .ToList();
+                var totalCount = filteredList.Count;
+
+                var items = filteredList
                     .Skip(startIndex)
                     .Take(limit)
                     .Select(item => new ItemInfo
