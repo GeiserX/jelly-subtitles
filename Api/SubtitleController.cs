@@ -92,22 +92,21 @@ namespace WhisperSubs.Api
                 var config = Plugin.Instance.Configuration;
                 var typeStr = config.EnableLyricsGeneration ? "Movie,Episode,Video,Audio" : "Movie,Episode,Video";
                 var includeTypes = GetBaseItemKinds(typeStr);
-                var allItems = _libraryManager.GetItemList(new MediaBrowser.Controller.Entities.InternalItemsQuery
+                var query = new MediaBrowser.Controller.Entities.InternalItemsQuery
                 {
                     ParentId = library.Id,
                     IncludeItemTypes = includeTypes,
                     Recursive = true
-                }).Where(item => !string.IsNullOrEmpty(item.Path));
+                };
 
                 if (!string.IsNullOrWhiteSpace(searchTerm))
                 {
-                    var term = searchTerm.Trim();
-                    allItems = allItems.Where(item =>
-                        (item.Name != null && item.Name.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
-                        (item.Path != null && System.IO.Path.GetFileName(item.Path).Contains(term, StringComparison.OrdinalIgnoreCase)));
+                    query.SearchTerm = searchTerm.Trim();
                 }
 
-                var filteredList = allItems.ToList();
+                var filteredList = _libraryManager.GetItemList(query)
+                    .Where(item => !string.IsNullOrEmpty(item.Path))
+                    .ToList();
                 var totalCount = filteredList.Count;
 
                 var items = filteredList
