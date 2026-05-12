@@ -78,7 +78,8 @@ namespace WhisperSubs.Api
         public ActionResult<PagedItemResult> GetLibraryItems(
             [FromRoute] string libraryId,
             [FromQuery] int startIndex = 0,
-            [FromQuery] int limit = 50)
+            [FromQuery] int limit = 50,
+            [FromQuery] string? searchTerm = null)
         {
             try
             {
@@ -96,11 +97,20 @@ namespace WhisperSubs.Api
                     ParentId = library.Id,
                     IncludeItemTypes = includeTypes,
                     Recursive = true
-                }).Where(item => !string.IsNullOrEmpty(item.Path)).ToList();
+                }).Where(item => !string.IsNullOrEmpty(item.Path));
 
-                var totalCount = allItems.Count;
+                if (!string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    var term = searchTerm.Trim();
+                    allItems = allItems.Where(item =>
+                        (item.Name != null && item.Name.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
+                        (item.Path != null && System.IO.Path.GetFileName(item.Path).Contains(term, StringComparison.OrdinalIgnoreCase)));
+                }
 
-                var items = allItems
+                var filteredList = allItems.ToList();
+                var totalCount = filteredList.Count;
+
+                var items = filteredList
                     .Skip(startIndex)
                     .Take(limit)
                     .Select(item => new ItemInfo

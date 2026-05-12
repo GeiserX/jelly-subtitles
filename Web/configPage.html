@@ -279,6 +279,11 @@
                     </div>
                 </div>
 
+                <div class="inputContainer" style="margin-top: 0.8em;">
+                    <label class="inputLabel inputLabelUnfocused" for="txtSearchItems">Search Items</label>
+                    <input type="text" id="txtSearchItems" class="emby-input" placeholder="Filter by file name or title..." />
+                </div>
+
                 <div id="mediaTableContainer" style="margin-top: 1em;">
                     <table class="tblMediaInfo" style="width: 100%;">
                         <thead>
@@ -312,6 +317,8 @@
                 currentStartIndex: 0,
                 currentTotalCount: 0,
                 currentLibraryId: '',
+                currentSearchTerm: '',
+                _searchDebounceTimer: null,
                 _progressPollTimer: null,
                 _queuePollTimer: null,
                 _queueHideTimer: null,
@@ -910,11 +917,16 @@
 
                     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2em;">Loading...</td></tr>';
 
+                    var queryParams = {
+                        startIndex: startIndex,
+                        limit: WhisperSubsConfig.pageSize
+                    };
+                    if (WhisperSubsConfig.currentSearchTerm) {
+                        queryParams.searchTerm = WhisperSubsConfig.currentSearchTerm;
+                    }
+
                     WhisperSubsConfig.ajaxGet(
-                        ApiClient.getUrl('Plugins/WhisperSubs/Libraries/' + libraryId + '/Items', {
-                            startIndex: startIndex,
-                            limit: WhisperSubsConfig.pageSize
-                        })
+                        ApiClient.getUrl('Plugins/WhisperSubs/Libraries/' + libraryId + '/Items', queryParams)
                     ).then(function (result) {
                         tbody.innerHTML = '';
 
@@ -1241,7 +1253,22 @@
 
             document.querySelector('#selectLibrary').addEventListener('change', function (e) {
                 WhisperSubsConfig.currentStartIndex = 0;
+                WhisperSubsConfig.currentSearchTerm = '';
+                document.querySelector('#txtSearchItems').value = '';
                 WhisperSubsConfig.loadLibraryItems(e.target.value, 0);
+            });
+
+            document.querySelector('#txtSearchItems').addEventListener('input', function (e) {
+                if (WhisperSubsConfig._searchDebounceTimer) {
+                    clearTimeout(WhisperSubsConfig._searchDebounceTimer);
+                }
+                WhisperSubsConfig._searchDebounceTimer = setTimeout(function () {
+                    WhisperSubsConfig.currentSearchTerm = e.target.value.trim();
+                    WhisperSubsConfig.currentStartIndex = 0;
+                    if (WhisperSubsConfig.currentLibraryId) {
+                        WhisperSubsConfig.loadLibraryItems(WhisperSubsConfig.currentLibraryId, 0);
+                    }
+                }, 300);
             });
 
             document.querySelector('#btnPrevPage').addEventListener('click', function () {
