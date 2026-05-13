@@ -277,7 +277,14 @@ namespace WhisperSubs.ScheduledTasks
                     await SubtitleQueueService.TranscriptionLock.WaitAsync(cancellationToken);
                     try
                     {
-                        await manager.GenerateSubtitleAsync(item, provider, language, cancellationToken);
+                        if (config.PauseOnPlayback)
+                        {
+                            await TranscribeWithPlaybackMonitorAsync(manager, item, provider, language, cancellationToken);
+                        }
+                        else
+                        {
+                            await manager.GenerateSubtitleAsync(item, provider, language, cancellationToken);
+                        }
                     }
                     finally
                     {
@@ -330,6 +337,69 @@ namespace WhisperSubs.ScheduledTasks
                 queue.ReportPhase(null!);
                 _logger.LogInformation("Playback stopped — resuming subtitle generation");
             }
+        }
+
+        /// <summary>
+        /// Runs transcription while monitoring for playback. If playback starts mid-transcription,
+        /// cancels whisper (saving partial SRT), waits for playback to end, then retries.
+        /// Resume logic in SubtitleManager picks up from where the partial SRT left off.
+        /// </summary>
+        private async Task TranscribeWithPlaybackMonitorAsync(
+            SubtitleManager manager, BaseItem item, ISubtitleProvider provider,
+            string language, CancellationToken cancellationToken)
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                using var playbackCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                var monitorTask = MonitorPlaybackAsync(playbackCts.Token);
+                var transcribeTask = manager.GenerateSubtitleAsync(item, provider, language, playbackCts.Token);
+
+                var finished = await Task.WhenAny(transcribeTask, monitorTask);
+
+                if (finished == transcribeTask)
+                {
+                    // Transcription completed (or threw) before playback started — cancel monitor and propagate
+                    await playbackCts.CancelAsync();
+                    await transcribeTask; // propagate exceptions
+                    return;
+                }
+
+                // Playback detected — cancel the transcription (whisper saves partial SRT)
+                _logger.LogInformation("Playback started during transcription of {ItemName} — interrupting", item.Name);
+                await playbackCts.CancelAsync();
+
+                try
+                {
+                    await transcribeTask;
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected — whisper was killed, partial SRT saved
+                }
+
+                // Wait for playback to finish, then retry (resume picks up from partial)
+                await WaitForPlaybackIdleAsync(cancellationToken);
+                _logger.LogInformation("Retrying transcription for {ItemName} (will resume from partial)", item.Name);
+            }
+        }
+
+        /// <summary>
+        /// Polls sessions every 10 seconds. Returns (completes) when playback is detected.
+        /// </summary>
+        private async Task MonitorPlaybackAsync(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                if (_sessionManager.Sessions.Any(s => s.NowPlayingItem != null))
+                {
+                    return;
+                }
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
         }
     }
 }
