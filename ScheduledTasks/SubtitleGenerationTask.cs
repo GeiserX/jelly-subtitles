@@ -362,6 +362,7 @@ namespace WhisperSubs.ScheduledTasks
                 {
                     // Transcription completed (or threw) before playback started — cancel monitor and propagate
                     await playbackCts.CancelAsync();
+                    try { await monitorTask; } catch (OperationCanceledException) { }
                     await transcribeTask; // propagate exceptions
                     return;
                 }
