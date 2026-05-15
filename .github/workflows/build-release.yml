@@ -95,10 +95,7 @@ jobs:
 
       - name: Install Vulkan SDK
         if: steps.cache-whisper.outputs.cache-hit != 'true' && matrix.pre_install == 'vulkan'
-        run: |
-          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
-          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
-          sudo apt-get update && sudo apt-get install -y libvulkan-dev glslc
+        run: sudo apt-get install -y libvulkan-dev shaderc
 
       - name: Install ARM64 cross-compilation toolchain
         if: steps.cache-whisper.outputs.cache-hit != 'true' && matrix.pre_install == 'arm64'
