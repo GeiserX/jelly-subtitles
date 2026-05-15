@@ -95,7 +95,7 @@ jobs:
 
       - name: Install Vulkan SDK
         if: steps.cache-whisper.outputs.cache-hit != 'true' && matrix.pre_install == 'vulkan'
-        run: sudo apt-get install -y libvulkan-dev shaderc
+        run: sudo apt-get install -y libvulkan-dev vulkan-headers shaderc
 
       - name: Install ARM64 cross-compilation toolchain
         if: steps.cache-whisper.outputs.cache-hit != 'true' && matrix.pre_install == 'arm64'
