@@ -68,14 +68,14 @@ jobs:
             asset_name: whisper-cli-linux-x64-vulkan-noavx
             cmake_flags: "-DGGML_VULKAN=ON -DGGML_NATIVE=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF -DGGML_BMI2=OFF -DGGML_SSE42=ON -DGGML_OPENMP=OFF"
             pre_install: "vulkan"
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Cache whisper binary
         id: cache-whisper
         uses: actions/cache@v4
         with:
           path: /tmp/whisper-${{ matrix.variant }}/build/bin/whisper-cli
-          key: whisper-1.8.4-${{ matrix.asset_name }}-v7
+          key: whisper-1.8.4-${{ matrix.asset_name }}-v8
 
       - name: Install build dependencies
         if: steps.cache-whisper.outputs.cache-hit != 'true'
@@ -254,10 +254,16 @@ jobs:
             --arg ts "$TIMESTAMP" \
             '{version: $ver, changelog: "See https://github.com/GeiserX/whisper-subs/releases", targetAbi: "10.11.0.0", sourceUrl: "https://github.com/GeiserX/whisper-subs/releases/download/v\($ver)/WhisperSubs_\($ver).zip", checksum: $cs, timestamp: $ts}')
 
-          if [ -f manifest.json ] && jq -e '.[0].versions' manifest.json > /dev/null 2>&1; then
-            # Prepend new version, keep last 5
+          # Fetch live manifest from Pages (has accumulated history)
+          LIVE_MANIFEST=$(curl -sf https://geiserx.github.io/whisper-subs/manifest.json || echo "")
+
+          if [ -n "$LIVE_MANIFEST" ] && echo "$LIVE_MANIFEST" | jq -e '.[0].versions' > /dev/null 2>&1; then
+            echo "$LIVE_MANIFEST" | jq --argjson entry "$NEW_ENTRY" \
+              '.[0].versions = ([$entry] + [.[0].versions[] | select(.version != $entry.version)]) | .[0].versions = .[0].versions[:5]' \
+              > manifest.json
+          elif [ -f manifest.json ] && jq -e '.[0].versions' manifest.json > /dev/null 2>&1; then
             jq --argjson entry "$NEW_ENTRY" \
-              '.[0].versions = ([$entry] + .[0].versions) | .[0].versions = .[0].versions[:5]' \
+              '.[0].versions = ([$entry] + [.[0].versions[] | select(.version != $entry.version)]) | .[0].versions = .[0].versions[:5]' \
               manifest.json > manifest.json.tmp && mv manifest.json.tmp manifest.json
           else
             jq -n --argjson entry "$NEW_ENTRY" '[{
@@ -290,14 +296,6 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Commit updated manifest
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add manifest.json
-          git diff --cached --quiet || git commit -m "chore: update manifest.json for v${{ steps.version.outputs.version }}"
-          git push
 
       - name: Prepare Pages content
         run: |
