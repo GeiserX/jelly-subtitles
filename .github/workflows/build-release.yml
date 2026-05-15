@@ -44,6 +44,11 @@ jobs:
             cmake_flags: "-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ -DGGML_NATIVE=OFF"
             pre_install: "arm64"
           - os: [self-hosted, Linux, X64]
+            variant: cpu-arm64-noavx
+            asset_name: whisper-cli-linux-arm64-noavx
+            cmake_flags: "-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF"
+            pre_install: "arm64"
+          - os: [self-hosted, Linux, X64]
             variant: cuda12
             asset_name: whisper-cli-linux-x64-cuda12
             cmake_flags: "-DGGML_CUDA=ON -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_BMI2=ON"
@@ -243,28 +248,28 @@ jobs:
           CHECKSUM="${{ steps.checksum.outputs.checksum }}"
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          cat > manifest.json << EOF
-          [
-            {
-              "guid": "97124bd9-c8cd-4a53-a213-e593aa3fef52",
-              "name": "WhisperSubs",
-              "description": "Automated subtitle generation for Jellyfin using local Whisper AI models.",
-              "overview": "Generate subtitles for your media library using local speech-to-text AI (whisper.cpp). Supports CPU and GPU-accelerated transcription. All processing happens locally on your server.",
-              "owner": "GeiserX",
-              "category": "Subtitles",
-              "versions": [
-                {
-                  "version": "${VERSION}",
-                  "changelog": "See https://github.com/GeiserX/whisper-subs/releases",
-                  "targetAbi": "10.11.0.0",
-                  "sourceUrl": "https://github.com/GeiserX/whisper-subs/releases/download/v${VERSION}/WhisperSubs_${VERSION}.zip",
-                  "checksum": "${CHECKSUM}",
-                  "timestamp": "${TIMESTAMP}"
-                }
-              ]
-            }
-          ]
-          EOF
+          NEW_ENTRY=$(jq -n \
+            --arg ver "$VERSION" \
+            --arg cs "$CHECKSUM" \
+            --arg ts "$TIMESTAMP" \
+            '{version: $ver, changelog: "See https://github.com/GeiserX/whisper-subs/releases", targetAbi: "10.11.0.0", sourceUrl: "https://github.com/GeiserX/whisper-subs/releases/download/v\($ver)/WhisperSubs_\($ver).zip", checksum: $cs, timestamp: $ts}')
+
+          if [ -f manifest.json ] && jq -e '.[0].versions' manifest.json > /dev/null 2>&1; then
+            # Prepend new version, keep last 5
+            jq --argjson entry "$NEW_ENTRY" \
+              '.[0].versions = ([$entry] + .[0].versions) | .[0].versions = .[0].versions[:5]' \
+              manifest.json > manifest.json.tmp && mv manifest.json.tmp manifest.json
+          else
+            jq -n --argjson entry "$NEW_ENTRY" '[{
+              guid: "97124bd9-c8cd-4a53-a213-e593aa3fef52",
+              name: "WhisperSubs",
+              description: "Automated subtitle generation for Jellyfin using local Whisper AI models.",
+              overview: "Generate subtitles for your media library using local speech-to-text AI (whisper.cpp). Supports CPU and GPU-accelerated transcription. All processing happens locally on your server.",
+              owner: "GeiserX",
+              category: "Subtitles",
+              versions: [$entry]
+            }]' > manifest.json
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -276,6 +281,7 @@ jobs:
             whisper-cli-linux-x64
             whisper-cli-linux-x64-noavx
             whisper-cli-linux-arm64
+            whisper-cli-linux-arm64-noavx
             whisper-cli-linux-x64-cuda12
             whisper-cli-linux-x64-cuda12-noavx
             whisper-cli-linux-x64-vulkan
@@ -285,13 +291,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Commit updated manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git diff --cached --quiet || git commit -m "chore: update manifest.json for v${{ steps.version.outputs.version }}"
+          git push
+
+      - name: Prepare Pages content
+        run: |
+          mkdir -p _pages
+          cp manifest.json _pages/
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _pages
 
       - name: Deploy to GitHub Pages
         id: deployment
