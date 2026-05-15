@@ -39,10 +39,10 @@ jobs:
             cmake_flags: "-DGGML_NATIVE=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF -DGGML_BMI2=OFF -DGGML_SSE42=ON -DGGML_OPENMP=OFF"
             pre_install: ""
           - os: [self-hosted, Linux, X64]
-            variant: cpu
+            variant: cpu-arm64
             asset_name: whisper-cli-linux-arm64
-            cmake_flags: ""
-            pre_install: ""
+            cmake_flags: "-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ -DGGML_NATIVE=OFF"
+            pre_install: "arm64"
           - os: [self-hosted, Linux, X64]
             variant: cuda12
             asset_name: whisper-cli-linux-x64-cuda12
@@ -91,6 +91,10 @@ jobs:
       - name: Install Vulkan SDK
         if: steps.cache-whisper.outputs.cache-hit != 'true' && matrix.pre_install == 'vulkan'
         run: sudo apt-get install -y libvulkan-dev glslc
+
+      - name: Install ARM64 cross-compilation toolchain
+        if: steps.cache-whisper.outputs.cache-hit != 'true' && matrix.pre_install == 'arm64'
+        run: sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
       - name: Clone whisper.cpp
         if: steps.cache-whisper.outputs.cache-hit != 'true'
