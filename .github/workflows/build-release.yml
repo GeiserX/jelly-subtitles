@@ -79,7 +79,7 @@ jobs:
 
       - name: Install build dependencies
         if: steps.cache-whisper.outputs.cache-hit != 'true'
-        run: sudo apt-get update && sudo apt-get install -y cmake g++ make
+        run: sudo apt-get update && sudo apt-get install -y cmake g++ make software-properties-common wget
 
       - name: Install CUDA Toolkit
         if: steps.cache-whisper.outputs.cache-hit != 'true' && matrix.pre_install == 'cuda'
@@ -95,7 +95,10 @@ jobs:
 
       - name: Install Vulkan SDK
         if: steps.cache-whisper.outputs.cache-hit != 'true' && matrix.pre_install == 'vulkan'
-        run: sudo apt-get install -y libvulkan-dev glslc
+        run: |
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+          sudo apt-get update && sudo apt-get install -y libvulkan-dev glslc
 
       - name: Install ARM64 cross-compilation toolchain
         if: steps.cache-whisper.outputs.cache-hit != 'true' && matrix.pre_install == 'arm64'
@@ -103,7 +106,9 @@ jobs:
 
       - name: Clone whisper.cpp
         if: steps.cache-whisper.outputs.cache-hit != 'true'
-        run: git clone --depth 1 --branch v1.8.4 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper-${{ matrix.variant }}
+        run: |
+          rm -rf /tmp/whisper-${{ matrix.variant }}
+          git clone --depth 1 --branch v1.8.4 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper-${{ matrix.variant }}
 
       - name: Build whisper-cli
         if: steps.cache-whisper.outputs.cache-hit != 'true'
