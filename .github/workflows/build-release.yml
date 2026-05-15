@@ -28,42 +28,42 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: [self-hosted, Linux, X64]
             variant: cpu
             asset_name: whisper-cli-linux-x64
             cmake_flags: "-DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_BMI2=ON"
             pre_install: ""
-          - os: ubuntu-22.04
+          - os: [self-hosted, Linux, X64]
             variant: cpu-noavx
             asset_name: whisper-cli-linux-x64-noavx
             cmake_flags: "-DGGML_NATIVE=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF -DGGML_BMI2=OFF -DGGML_SSE42=ON -DGGML_OPENMP=OFF"
             pre_install: ""
-          - os: ubuntu-24.04-arm
+          - os: [self-hosted, Linux, X64]
             variant: cpu
             asset_name: whisper-cli-linux-arm64
             cmake_flags: ""
             pre_install: ""
-          - os: ubuntu-22.04
+          - os: [self-hosted, Linux, X64]
             variant: cuda12
             asset_name: whisper-cli-linux-x64-cuda12
             cmake_flags: "-DGGML_CUDA=ON -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_BMI2=ON"
             pre_install: "cuda"
-          - os: ubuntu-22.04
+          - os: [self-hosted, Linux, X64]
             variant: cuda12-noavx
             asset_name: whisper-cli-linux-x64-cuda12-noavx
             cmake_flags: "-DGGML_CUDA=ON -DGGML_NATIVE=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF -DGGML_BMI2=OFF -DGGML_SSE42=ON -DGGML_OPENMP=OFF"
             pre_install: "cuda"
-          - os: ubuntu-24.04
+          - os: [self-hosted, Linux, X64]
             variant: vulkan
             asset_name: whisper-cli-linux-x64-vulkan
             cmake_flags: "-DGGML_VULKAN=ON -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_BMI2=ON"
             pre_install: "vulkan"
-          - os: ubuntu-24.04
+          - os: [self-hosted, Linux, X64]
             variant: vulkan-noavx
             asset_name: whisper-cli-linux-x64-vulkan-noavx
             cmake_flags: "-DGGML_VULKAN=ON -DGGML_NATIVE=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF -DGGML_BMI2=OFF -DGGML_SSE42=ON -DGGML_OPENMP=OFF"
             pre_install: "vulkan"
-    runs-on: ${{ matrix.os }}
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - name: Cache whisper binary
         id: cache-whisper
