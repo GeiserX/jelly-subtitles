@@ -18,16 +18,33 @@ namespace WhisperSubs.Providers
         private readonly string _modelPath;
         private readonly string _binaryPath;
         private readonly int _threadCount;
+        private readonly string _customArgs;
         private string? _resolvedExecutable;
+
+        private static readonly HashSet<string> DeniedArgs = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "-m", "--model", "-f", "--file", "-l", "--language",
+            "-t", "--threads", "-mc", "--max-context",
+            "-sns", "--suppress-nst",
+            "-osrt", "--output-srt", "-ovtt", "--output-vtt",
+            "-otxt", "--output-txt", "-olrc", "--output-lrc",
+            "-ocsv", "--output-csv", "-oj", "--output-json",
+            "-ojf", "--output-json-full", "-owts", "--output-words",
+            "-of", "--output-file", "--translate", "-tr",
+            "--detect-language", "-dl", "--no-timestamps", "-nt",
+            "--prompt", "--offset-n", "-on", "--offset-t", "-ot",
+            "--duration", "-d"
+        };
 
         public string Name => "Whisper";
 
-        public WhisperProvider(ILogger<WhisperProvider> logger, string modelPath, string binaryPath = "", int threadCount = 0)
+        public WhisperProvider(ILogger<WhisperProvider> logger, string modelPath, string binaryPath = "", int threadCount = 0, string customArgs = "")
         {
             _logger = logger;
             _modelPath = modelPath;
             _binaryPath = binaryPath;
             _threadCount = threadCount;
+            _customArgs = customArgs ?? "";
         }
 
         public async Task<string> TranscribeAsync(string audioPath, string language, CancellationToken cancellationToken, bool translate = false)
@@ -100,6 +117,8 @@ namespace WhisperSubs.Providers
                     startInfo.ArgumentList.Add("--prompt");
                     startInfo.ArgumentList.Add(langPrompt);
                 }
+
+                AppendCustomArgs(startInfo);
 
                 _logger.LogInformation("Running: {Executable} {Arguments} (cwd: {WorkingDirectory})",
                     whisperExecutable, string.Join(" ", startInfo.ArgumentList), startInfo.WorkingDirectory);
@@ -478,6 +497,22 @@ namespace WhisperSubs.Providers
             if (string.IsNullOrWhiteSpace(srtContent)) return 0;
             var matches = Regex.Matches(srtContent, @"-->"); // Each entry has one --> line
             return matches.Count;
+        }
+
+        private void AppendCustomArgs(ProcessStartInfo startInfo)
+        {
+            if (string.IsNullOrWhiteSpace(_customArgs)) return;
+
+            foreach (var token in _customArgs.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var flagName = token.Contains('=') ? token[..token.IndexOf('=')] : token;
+                if (DeniedArgs.Contains(flagName))
+                {
+                    _logger.LogWarning("Skipping denied custom argument: {Arg}", token);
+                    continue;
+                }
+                startInfo.ArgumentList.Add(token);
+            }
         }
 
         private string? FindWhisperExecutable()

@@ -24,7 +24,8 @@ namespace WhisperSubs.Providers
                 loggerFactory.CreateLogger<WhisperProvider>(),
                 config.WhisperModelPath,
                 config.WhisperBinaryPath,
-                config.WhisperThreadCount);
+                config.WhisperThreadCount,
+                config.CustomWhisperArgs);
         }
     }
 }
