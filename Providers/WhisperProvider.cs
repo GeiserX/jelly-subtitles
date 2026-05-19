@@ -499,16 +499,20 @@ namespace WhisperSubs.Providers
             return matches.Count;
         }
 
-        private void AppendCustomArgs(ProcessStartInfo startInfo)
+        internal void AppendCustomArgs(ProcessStartInfo startInfo)
         {
             if (string.IsNullOrWhiteSpace(_customArgs)) return;
 
-            foreach (var token in _customArgs.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+            var tokens = _customArgs.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            for (int i = 0; i < tokens.Length; i++)
             {
+                var token = tokens[i];
                 var flagName = token.Contains('=') ? token[..token.IndexOf('=')] : token;
                 if (DeniedArgs.Contains(flagName))
                 {
                     _logger.LogWarning("Skipping denied custom argument: {Arg}", token);
+                    if (!token.Contains('=') && i + 1 < tokens.Length && !tokens[i + 1].StartsWith('-'))
+                        i++;
                     continue;
                 }
                 startInfo.ArgumentList.Add(token);
