@@ -71,6 +71,13 @@ namespace WhisperSubs.Configuration
         /// </summary>
         public bool PauseOnPlayback { get; set; } = false;
 
+        /// <summary>
+        /// Extra arguments appended to every whisper-cli invocation (space-separated).
+        /// Only applies to local whisper-cli, not the remote API.
+        /// Example: --max-len 47 --split-on-word
+        /// </summary>
+        public string CustomWhisperArgs { get; set; } = "";
+
         public List<string> EnabledLibraries { get; set; } = new List<string>();
 
         public PluginConfiguration()

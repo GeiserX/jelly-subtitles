@@ -240,6 +240,12 @@
                             <input type="number" id="txtWhisperThreadCount" name="WhisperThreadCount" class="emby-input" min="0" max="64" step="1" />
                             <div class="fieldDescription">Number of CPU threads for whisper inference. 0 = whisper default (4). Set to your CPU core count for faster transcription.</div>
                         </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="txtCustomWhisperArgs">Custom Whisper Arguments</label>
+                            <input type="text" id="txtCustomWhisperArgs" name="CustomWhisperArgs" class="emby-input" placeholder="e.g., --max-len 47 --split-on-word" />
+                            <div class="fieldDescription">Extra arguments appended to whisper-cli (space-separated). Only applies to local whisper-cli, not the remote API. Useful for timing improvements (e.g., <code>--max-len 47 --split-on-word</code>) or tuning (<code>--beam-size 8</code>). Flags managed by the plugin (model, language, output format) are automatically blocked.</div>
+                        </div>
                     </details>
 
                     <button is="emby-button" type="submit" class="raised button-submit block" style="margin-top:1.5em;">
@@ -828,6 +834,7 @@
                             page.querySelector('#txtWhisperBinaryPath').value = config.WhisperBinaryPath || '';
                             page.querySelector('#txtWhisperModelPath').value = config.WhisperModelPath || '';
                             page.querySelector('#txtWhisperThreadCount').value = (config.WhisperThreadCount || 0).toString();
+                            page.querySelector('#txtCustomWhisperArgs').value = config.CustomWhisperArgs || '';
                             page.querySelector('#txtRemoteWhisperApiUrl').value = config.RemoteWhisperApiUrl || '';
                             page.querySelector('#txtRemoteWhisperModel').value = config.RemoteWhisperModel || 'Systran/faster-whisper-large-v3';
                             page.querySelector('#txtRemoteWhisperApiKey').value = config.RemoteWhisperApiKey || '';
@@ -850,6 +857,7 @@
                         config.WhisperBinaryPath = page.querySelector('#txtWhisperBinaryPath').value;
                         config.WhisperModelPath = page.querySelector('#txtWhisperModelPath').value;
                         config.WhisperThreadCount = parseInt(page.querySelector('#txtWhisperThreadCount').value, 10) || 0;
+                        config.CustomWhisperArgs = (page.querySelector('#txtCustomWhisperArgs').value || '').trim();
                         config.RemoteWhisperApiUrl = (page.querySelector('#txtRemoteWhisperApiUrl').value || '').trim();
                         config.RemoteWhisperModel = (page.querySelector('#txtRemoteWhisperModel').value || '').trim() || 'Systran/faster-whisper-large-v3';
                         config.RemoteWhisperApiKey = (page.querySelector('#txtRemoteWhisperApiKey').value || '').trim();
